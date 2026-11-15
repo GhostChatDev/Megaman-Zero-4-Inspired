@@ -79,7 +79,7 @@ jobs:
                 const key = upgrades[0].key;
                 const old = save.upgrades[key];
                 const bought = purchase(save, key);
-                persist(); flushSave();
+                persist(); if (typeof flushSave === 'function') flushSave();
                 return { bought, spent: save.bananas < before, upgraded: save.upgrades[key] === old + 1 };
               });
               assert(economy.bought && economy.spent && economy.upgraded, 'Upgrade changes balance and stats');
