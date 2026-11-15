@@ -155,6 +155,14 @@ function render(){
  }else{for(let i=0;i<20;i++){const x=(i*37+tick*.1)%W,y=240+Math.sin(i+tick*.01)*18;rect(x,y,3,3,'#8fd5ce')}label('DAWN CARAVAN // SIGNAL STANDBY',240,300,'#7292a6',8,'center')}
 }
 let lastFrame=0,accumulator=0;
+function flushSave(){return persist()}
+const stick=$('stick'),knob=$('knob');let stickPointer=null;
+function moveStick(e){const r=stick.getBoundingClientRect(),dx=clamp((e.clientX-r.left-r.width/2)/(r.width*.35),-1,1),dy=clamp((e.clientY-r.top-r.height/2)/(r.height*.35),-1,1);knob.style.transform=`translate(${dx*30}px,${dy*30}px)`;touch.left=dx<-.22;touch.right=dx>.22}
+stick.addEventListener('pointerdown',e=>{if(stickPointer!==null)return;e.preventDefault();initAudio();stickPointer=e.pointerId;stick.setPointerCapture(e.pointerId);moveStick(e)});
+stick.addEventListener('pointermove',e=>{if(e.pointerId===stickPointer)moveStick(e)});
+function releaseStick(e){if(e&&e.pointerId!==stickPointer)return;stickPointer=null;touch.left=touch.right=false;knob.style.transform=''}
+for(const event of ['pointerup','pointercancel','lostpointercapture'])stick.addEventListener(event,releaseStick);window.addEventListener('blur',()=>releaseStick());
+for(const event of ['gesturestart','gesturechange','dblclick'])document.addEventListener(event,e=>e.preventDefault(),{passive:false});
 function frame(now){const elapsed=lastFrame?Math.min((now-lastFrame)/1000,.1):0;lastFrame=now;accumulator+=elapsed;
  // Fixed 120 Hz simulation prevents refresh-rate-dependent movement and collision tunneling.
  let steps=0;while(accumulator>=1/120&&steps<12){pollInput();update(1/120);game.shake=Math.max(0,game.shake-25/120);accumulator-=1/120;tick++;steps++}
