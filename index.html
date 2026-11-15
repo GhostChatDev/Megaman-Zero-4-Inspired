@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05070d">
+<title>Zero Signal: Caravan of Ashes</title>
+<style>
+:root{
+  --bg:#05070d; --panel:#0b1220; --panel2:#0e1830; --line:#1d2b45;
+  --cyan:#39d8ff; --cyan2:#7ff0ff; --red:#ff4d5e; --amber:#ffb54d;
+  --text:#cfe3f5; --dim:#7d93ad; --hp:#59e38c; --en:#49b6ff;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);
+  font-family:ui-rounded,"SF Pro Rounded","Segoe UI",Roboto,Arial,sans-serif;color:var(--text);}
+#stage{position:fixed;inset:0;}
+canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;image-rendering:pixelated;}
+button{font:inherit;color:inherit;background:none;border:none;}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(120% 90% at 50% 10%, #0a1322 0%, #05070d 70%);z-index:20;padding:22px;}
+.hidden{display:none!important;}
+/* ---------- Title ---------- */
+.logo{ text-align:center; margin-bottom:6px;}
+.logo .t1{font-size:clamp(28px,7vw,58px);font-weight:800;letter-spacing:.06em;
+  background:linear-gradient(180deg,#eaffff,#39d8ff 60%,#1d6f9a);-webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 0 30px rgba(57,216,255,.35);}
+.logo .t2{font-size:clamp(14px,3vw,22px);color:var(--amber);letter-spacing:.35em;font-weight:700;text-transform:uppercase;}
+.tag{color:var(--dim);font-size:13px;margin:10px 0 22px;text-align:center;}
+.btn{display:block;width:min(360px,84vw);padding:13px 18px;margin:7px auto;border-radius:12px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  color:var(--text);font-weight:700;letter-spacing:.04em;text-align:center;cursor:pointer;}
+.btn.primary{background:linear-gradient(180deg,#123c56,#0b2537);border-color:#39d8ff;box-shadow:0 0 18px rgba(57,216,255,.25);color:#eaffff;}
+.btn.warn{border-color:rgba(255,77,94,.55);color:#ffb3ba;}
+.btn.small{width:auto;display:inline-block;padding:9px 14px;font-size:14px;margin:4px;}
+.btn:active{transform:scale(.98);}
+.difficulty-row{display:flex;gap:8px;margin:10px 0 4px;}
+.diff{flex:1;padding:10px 8px;border-radius:12px;border:1px solid var(--line);background:var(--panel);text-align:center;}
+.diff b{display:block;font-size:15px;}
+.diff span{font-size:11px;color:var(--dim);}
+.diff.sel{border-color:var(--cyan);box-shadow:0 0 14px rgba(57,216,255,.35);background:#0d2438;}
+.foot{position:absolute;bottom:10px;width:100%;text-align:center;color:#42566e;font-size:11px;letter-spacing:.08em;}
+/* ---------- Story ---------- */
+.story{max-width:min(680px,92vw);line-height:1.75;font-size:15px;text-align:center;color:#b9d2ea;}
+.story h3{color:var(--cyan2);letter-spacing:.22em;font-size:13px;text-transform:uppercase;margin-bottom:10px;font-weight:700;}
+.story .who{color:var(--amber);font-weight:700;}
+.typing{white-space:pre-wrap;min-height:120px;}
+.blink{display:inline-block;width:9px;height:16px;background:var(--cyan);animation:bl .8s steps(2) infinite;vertical-align:-2px;}
+@keyframes bl{50%{opacity:0}}
+/* ---------- HUD ---------- */
+#hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;padding:10px 12px;display:flex;z-index:10;
+  pointer-events:none;font-size:12px;}
+.hudL{display:flex;flex-direction:column;gap:4px;width:130px;}
+.hudC{flex:1;text-align:center;}
+.hudR{width:130px;text-align:right;}
+#hud .who{font-weight:800;font-size:13px;letter-spacing:.05em;color:#eaffff;text-shadow:0 0 8px rgba(57,216,255,.6);}
+#hud .who span{color:var(--dim);font-weight:500;font-size:11px;}
+.bar{height:11px;border-radius:7px;background:#111c2e;border:1px solid var(--line);overflow:hidden;position:relative;}
+.bar i{display:block;height:100%;transition:width .12s linear;}
+.bar .hp{background:linear-gradient(90deg,#2fbf69,var(--hp));}
+.bar .en{background:linear-gradient(90deg,#2f8fd8,var(--en));}
+.bar .boss{background:linear-gradient(90deg,#c93b4b,var(--red));}
+.bar em{position:absolute;right:5px;top:-1px;font-style:normal;font-size:9px;color:#dfeefc;text-shadow:0 1px 2px #000;}
+.hudC .wave{font-size:15px;font-weight:800;letter-spacing:.14em;color:#dff4ff;}
+.hudC .objective{color:var(--dim);font-size:11px;margin-top:2px;}
+.hudR .scrap{color:var(--amber);font-weight:800;}
+.hudR .hint{color:var(--dim);font-size:11px;margin-top:2px;}
+.hudR .bossy{display:flex;justify-content:flex-end;}
+/* ---------- Touch pad ---------- */
+#pad{position:absolute;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);height:30vh;z-index:12;display:flex;align-items:flex-end;pointer-events:none;}
+#dpad{position:absolute;left:14px;bottom:16px;width:47%;max-width:250px;height:56%;min-height:110px;pointer-events:auto;}
+.stick{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:78px;height:78px;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%, rgba(120,210,255,.5), rgba(20,40,60,.65));border:1.5px solid rgba(90,180,255,.5);
+  box-shadow:0 0 18px rgba(57,216,255,.25), inset 0 0 14px rgba(57,216,255,.18);}
+#stick{position:relative;}
+.dpad-ring{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:150px;height:150px;border-radius:50%;
+  border:1.5px dashed rgba(120,180,255,.25);}
+#dpad .lab{position:absolute;left:50%;bottom:-4px;transform:translateX(-50%);font-size:9px;color:var(--dim);letter-spacing:.2em;}
+#acts{position:absolute;right:12px;bottom:16px;display:grid;grid-template-columns:repeat(2,72px);grid-auto-rows:72px;gap:9px;pointer-events:auto;}
+.abtn{border-radius:20px;background:radial-gradient(circle at 34% 30%, #1b3350, #0a1524);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;
+  letter-spacing:.06em;color:#9fd6f5;box-shadow:0 3px 0 rgba(0,0,0,.45);}
+.abtn.on{background:radial-gradient(circle at 34% 30%, #2a557c, #10304d);box-shadow:0 0 16px rgba(57,216,255,.5);border-color:var(--cyan);}
+.abtn.jump{grid-column:2;}
+.abtn.atk{border-color:#7a3540;color:#ffb9c1;}
+.abtn.atk.on{background:radial-gradient(circle at 34% 30%, #7c2f3c, #40121d);box-shadow:0 0 16px rgba(255,77,94,.5);}
+/* ---------- Modals ---------- */
+#modal{position:absolute;inset:0;background:rgba(3,6,12,.72);z-index:30;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px);}
+#modal .box{width:min(430px,92vw);max-height:86vh;overflow-y:auto;background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:16px;padding:18px;}
+#modal h2{margin:2px 0 4px;font-size:18px;letter-spacing:.06em;color:#eaffff;}
+#modal .sub{color:var(--dim);font-size:12px;margin-bottom:10px;}
+.row{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid #14213a;gap:10px;}
+.row:last-child{border-bottom:none;}
+.row .lab{font-size:13px;}
+.row .val{color:var(--cyan);font-weight:700;font-size:13px;}
+input[type=range]{width:150px;accent-color:#39d8ff;}
+.set-group{display:flex;gap:6px;}
+.set-group button{padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:#0a1524;font-size:12px;font-weight:600;color:var(--text);}
+.set-group button.sel{background:#123c56;border-color:var(--cyan);color:#eaffff;}
+.klist{display:grid;grid-template-columns:1fr auto;gap:4px 14px;font-size:12px;color:var(--dim);margin-top:8px;}
+.klist b{color:var(--text);font-weight:600;}
+.saveNote{font-size:11px;color:var(--dim);margin-top:12px;text-align:center;}
+/* toast */
+#toast{position:absolute;top:calc(env(safe-area-inset-top,0px) + 54px);left:50%;transform:translateX(-50%);
+  background:rgba(10,21,36,.9);border:1px solid var(--line);border-radius:10px;padding:8px 16px;font-size:12px;
+  z-index:25;transition:opacity .3s;opacity:0;pointer-events:none;text-align:center;max-width:80vw;}
+#toast.show{opacity:1;}
+/* story overlay at stage start */
+#stageIntro{position:absolute;inset:0;z-index:22;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(3,6,12,.66);pointer-events:none;}
+#stageIntro .num{font-size:12px;letter-spacing:.4em;color:var(--dim);text-transform:uppercase;}
+#stageIntro .nm{font-size:clamp(24px,6vw,44px);font-weight:800;color:#eaffff;text-shadow:0 0 24px rgba(57,216,255,.45);letter-spacing:.04em;}
+#stageIntro .bs{font-size:13px;color:var(--red);letter-spacing:.14em;margin-top:4px;}
+@media (max-width:560px){ .hudL{width:104px}.hudR{width:104px} .abtn{width:60px;height:60px;font-size:10px} }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hudL">
+      <div class="who">VOLTA<span> · LV <b id="lv">1</b></span></div>
+      <div class="bar"><i id="hpBar" class="hp" style="width:100%"></i><em id="hpTxt">HP</em></div>
+      <div class="bar"><i id="enBar" class="en" style="width:100%"></i><em id="enTxt">EN</em></div>
+    </div>
+    <div class="hudC">
+      <div class="wave" id="waveTxt">STAGE 1</div>
+      <div class="objective" id="objTxt">Reach the beacon</div>
+    </div>
+    <div class="hudR">
+      <div class="scrap" id="scrapTxt">◆ 0</div>
+      <div class="hint">II / ⏸</div>
+      <div class="bossy"><div class="bar" id="bossBarBox" style="width:110px;display:none"><i id="bossBar" class="boss" style="width:100%"></i><em id="bossName">BOSS</em></div></div>
+    </div>
+  </div>
+
+  <!-- touch controls -->
+  <div id="pad" class="hidden">
+    <div id="dpad"><div class="dpad-ring"></div><div id="stick" class="stick"></div><div class="lab">MOVE</div></div>
+    <div id="acts">
+      <button class="abtn atk" id="bAtk">SLASH</button>
+      <button class="abtn jump" id="bJump">JUMP</button>
+      <button class="abtn" id="bDash">DASH</button>
+      <button class="abtn" id="bShot">BOLT</button>
+    </div>
+    <button id="bPause2" class="abtn" style="position:absolute;right:12px;top:calc(env(safe-area-inset-top,0px) + 8px);width:auto;padding:6px 12px;border-radius:10px;z-index:13;">⏸</button>
+  </div>
+
+  <div id="toast"></div>
+  <div id="stageIntro" class="hidden"><div class="num" id="siNum">STAGE 01</div><div class="nm" id="siName">FROSTLINE</div><div class="bs" id="siBoss">BOSS · ???</div></div>
+
+  <!-- TITLE -->
+  <div id="scrTitle" class="screen">
+    <div class="logo"><div class="t1">ZERO SIGNAL</div><div class="t2">Caravan of Ashes</div></div>
+    <div class="tag">A neon-swords action platformer · inspired by Megaman Zero 4<br>Original characters · no copyrighted assets</div>
+    <button class="btn primary" id="btnStart">▶ NEW GAME</button>
+    <button class="btn" id="btnContinue">↻ CONTINUE</button>
+    <button class="btn" id="btnSelect">⬢ STAGE SELECT</button>
+    <button class="btn" id="btnHow">? HOW TO PLAY</button>
+    <button class="btn" id="btnSettings">⚙ SETTINGS</button>
+    <div class="foot">v1.0 · ghostchat.tech · built in Ghost Code</div>
+  </div>
+
+  <!-- STAGE SELECT -->
+  <div id="scrSelect" class="screen hidden">
+    <h2 style="letter-spacing:.2em;color:#eaffff;font-size:18px">STAGE SELECT</h2>
+    <div class="tag">Clear stages to unlock the next.</div>
+    <div id="selGrid" style="display:grid;grid-template-columns:repeat(4,minmax(64px,88px));gap:10px;margin:12px 0"></div>
+    <button class="btn" id="selBack">◀ BACK</button>
+  </div>
+
+  <!-- STORY -->
+  <div id="scrStory" class="screen hidden">
+    <div class="story">
+      <h3 id="storyHead">PROLOGUE</h3>
+      <div class="typing" id="storyTxt"></div>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:10px">
+      <button class="btn small" id="storySkip">SKIP ▸</button>
+      <button class="btn small primary" id="storyNext">CONTINUE ▸</button>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="scrSettings" class="screen hidden">
+    <h2 style="letter-spacing:.2em;color:#eaffff;font-size:18px">SETTINGS</h2>
+    <div class="tag">Saved automatically on this device.</div>
+    <div class="row"><div class="lab">Master volume</div><input type="range" id="setVol" min="0" max="100" value="70"></div>
+    <div class="row"><div class="lab">Music</div><input type="range" id="setMus" min="0" max="100" value="60"></div>
+    <div class="row"><div class="lab">Sound effects</div><inputType type2="" id2="" min2="" max2="" value2=""></div>    <div class="row"><div class="lab">Sound effects</div><input type="range" id="setSfx" min="0" max="100" value="80"></div>
+    <div class="row"><div class="lab">Difficulty</div><div class="set-group" id="setDiff">
+      <button data-d="0">STORY</button><button data-d="1" class="sel">HARD</button><button data-d="2">IMPOSSIBLE</button></div></div>
+    <div class="row"><div class="lab">Screen shake</div><div class="set-group" id="setShake">
+      <button data-s="1" class="sel">ON</button><button data-s="0">OFF</button></div></div>
+    <div class="row"><div class="lab">Show damage numbers</div><div class="set-group" id="setDmg">
+      <button data-dm="1" class="sel">ON</button><button data-dm="0">OFF</button></div></div>
+    <div class="row"><div class="lab">Reset save data</div><button class="btn small warn" id="setReset">RESET</button></div>
+    <div class="saveNote">Progress, settings and best times are stored locally (localStorage).</div>
+    <button class="btn" id="setBack" style="margin-top:14px">◀ BACK</button>
+  </div>
+
+  <!-- HOW TO PLAY -->
+  <div id="scrHow" class="screen hidden">
+    <h2 style="letter-spacing:.2em;color:#eaffff;font-size:18px">HOW TO PLAY</h2>
+    <div class="story" style="text-align:left;font-size:13px;line-height:1.9">
+      <b style="color:var(--cyan)">MOVE</b> — arrows / WASD or drag the left pad.<br>
+      <b style="color:var(--cyan)">JUMP</b> — Z / K / SPACE. Hold for height, double-jump in air.<br>
+      <b style="color:var(--cyan)">DASH</b> — C / L / SHIFT. Air-dash once per jump. Dodges through attacks.<br>
+      <b style="color:var(--cyan)">SLASH</b> — X / J. The saber reflects some enemy bolts!<br>
+      <b style="color:var(--cyan)">BOLT</b> — hold to charge, release to fire.<br>
+      <b style="color:var(--amber)">◆ Scrap</b> drops from foes. Spend it at beacons (green pads) on HP / EN / lives.<br>
+      <b style="color:var(--red)">CHECKPOINTS</b> are rare. Impossible mode: 1 life, double enemy damage.<br>
+      <span style="color:var(--dim)">Defeat a guardian to repair its stage beacon. Beat all 8 to open the finale.</span>
+    </div>
+    <button class="btn" id="howBack" style="margin-top:16px">◀ BACK</button>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="scrOver" class="screen hidden">
+    <div class="logo"><div class="t1" style="font-size:clamp(30px,8vw,60px);background:linear-gradient(180deg,#ffd7db,#ff4d5e 60%,#8a1d2b);-webkit-background-clip:text;background-clip:text;">SIGNAL LOST</div></div>
+    <div class="tag" id="overTxt">The caravan waited for a dawn that never came.</div>
+    <div class="tag" id="overStats" style="color:#42566e"></div>
+    <button class="btn primary" id="overRetry">↻ RETRY STAGE</button>
+    <button class="btn" id="overMenu">◀ MAIN MENU</button>
+  </div>
+
+  <!-- VICTORY -->
+  <div id="scrWin" class="screen hidden">
+    <div class="logo"><div class="t1" style="background:linear-gradient(180deg,#fffbe9,#ffd75e 60%,#9a7a1a);-webkit-background-clip:text;background-clip:text;">DAWN ROUTE</div>
+      <div class="t2" style="color:#59e38c">The caravan lives</div></div>
+    <div class="tag" id="winTxt" style="max-width:520px"></div>
+    <div class="tag" id="winStats" style="color:#42566e"></div>
+    <button class="btn primary" id="winMenu">◀ MAIN MENU</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   ZERO SIGNAL: CARAVAN OF ASHES
+   A single-file action platformer. Original characters & story,
+   inspired by the structure of Megaman Zero 4 (8 bosses, hard,
+   neon swordsman, refugee caravan) — no copyrighted assets.
+   ============================================================ */
+
+/* ---------- SETTINGS ---------- */
+const S={ vol:0.7, mus:0.6, sfx:0.8, diff:1, shake:1, dmgNum:1 };
+function loadSettings(){ try{ const s=JSON.parse(localStorage.getItem("zs_settings")||"{}");
+  for(const k in S) if(s[k]!==undefined) S[k]=s[k]; }catch(e){} }
+function saveSettings(){ localStorage.setItem("zs_settings",JSON.stringify(S)); }
+
+/* ---------- SAVE ---------- */
+const SAVE_KEY="zs_save_v1";
+function defaultSave(){ return {unlocked:1, beaten:[], best:{}, stats:{kills:0,deaths:0,time:0}, lives:2, difficulty:S.diff}; }
+function loadSave(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.unlocked) return s; }catch(e){} return defaultSave(); }
+let SAVE=loadSave();
+function persist(){ localStorage.setItem(SAVE_KEY,JSON.stringify(SAVE)); }
+
+/* ---------- UTIL ---------- */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const rnd=(a=1)=>Math.random()*a;
+const rndi=(a)=>Math.floor(Math.random()*a);
+const irnd=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=a=>a[rndi(a.length)];
+const dist2=(x1,y1,x2,y2)=>{const dx=x1-x2,dy=y1-y2;return dx*dx+dy*dy;};
+const F=Math.floor;
+function fmtTime(s){ const m=F(s/60), r=F(s%60); return m+":"+String(r).padStart(2,"0"); }
+
+/* ---------- DIFFICULTY ---------- */
+const DIFFS=[
+ {name:"STORY",      enemyDmg:0.60, enemyRate:0.65, hp:1.5, lives:5, scrapMul:1.6},
+ {name:"HARD",       enemyDmg:1.00, enemyRate:1.00, hp:1.0, lives:2, scrapMul:1.0},
+ {name:"IMPOSSIBLE", enemyDmg:2.00, enemyRate:1.45, hp:0.6, lives:0, scrapMul:0.7},
+];
+function D(){ return DIFFS[S.diff]; }
+
+/* ============================================================
+   AUDIO — tiny synth engine (WebAudio). Music: 8 stage tracks +
+   boss + title, all generated in code. SFX: slash, bolt, hit...
+   ============================================================ */
+const AudioSys={
+  ctx:null, master:null, musGain:null, sfxGain:null, started:false,
+  seq:{cur:null, timer:0, step:0, nextTime:0},
+  init(){
+    if(this.ctx) return;
+    try{
+      this.ctx=new (window.AudioContext||window.webkitAudioContext)();
+      this.master=this.ctx.createGain(); this.master.gain.value=S.vol; this.master.connect(this.ctx.destination);
+      this.musGain=this.ctx.createGain(); this.musGain.gain.value=S.mus*0.5; this.musGain.connect(this.master);
+      this.sfxGain=this.ctx.createGain(); this.sfxGain.gain.value=S.sfx*0.9; this.sfxGain.connect(this.master);
+    }catch(e){ console.warn("no audio",e); }
+  },
+  resume(){ this.init(); if(this.ctx&&this.ctx.state==="suspended") this.ctx.resume(); },
+  setVol(){ if(this.master) this.master.gain.value=S.vol; },
+  setMus(){ if(this.musGain) this.musGain.gain.value=S.mus*0.5; },
+  setSfx(){ if(this.sfxGain) this.sfxGain.gain.value=S.sfx*0.9; },
+  /* --- basic voice --- */
+  tone(freq,dur,type,vol,when,slide){
+    if(!this.ctx) return; const t=when||this.ctx.currentTime;
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type||"square"; o.frequency.setValueAtTime(freq,t);
+    if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,slide),t+dur);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.2,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(this.sfxGain); o.start(t); o.stop(t+dur+0.05);
+  },
+  noise(dur,vol,when,hp){
+    if(!this.ctx) return; const t=when||this.ctx.currentTime;
+    const len=F(this.ctx.sampleRate*dur), buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    const src=this.ctx.createBufferSource(); src.buffer=buf;
+    const f=this.ctx.createBiquadFilter(); f.type=hp?"highpass":"lowpass"; f.frequency.value=hp||900;
+    const g=this.ctx.createGain(); g.gain.value=vol||0.25;
+    src.connect(f); f.connect(g); g.connect(this.sfxGain); src.start(t);
+  },
+  /* --- SFX --- */
+  sfx(name){
+    if(!this.ctx) return; const t=this.ctx.currentTime;
+    switch(name){
+      case "slash": this.noise(0.09,0.32,t,2400); this.tone(720,0.07,"sawtooth",0.12,t,240); break;
+      case "hit":   this.noise(0.08,0.3,t,600); this.tone(140,0.1,"square",0.22,t,60); break;
+      case "kill":  this.noise(0.22,0.34,t,400); this.tone(200,0.25,"sawtooth",0.2,t,40); break;
+      case "bolt":  this.tone(880,0.12,"square",0.16,t,220); break;
+      case "charge":this.tone(220,0.5,"sawtooth",0.1,t,1100); break;
+      case "jump":  this.tone(300,0.12,"square",0.14,t,600); break;
+      case "dash":  this.noise(0.12,0.22,t,1800); this.tone(500,0.1,"sine",0.12,t,900); break;
+      case "hurt":  this.tone(220,0.22,"sawtooth",0.3,t,80); this.noise(0.15,0.2,t); break;
+      case "pickup":this.tone(660,0.07,"sine",0.18,t); this.tone(990,0.09,"sine",0.18,t+0.06); break;
+      case "beacon":this.tone(440,0.1,"sine",0.2,t); this.tone(550,0.1,"sine",0.2,t+0.09); this.tone(660,0.14,"sine",0.22,t+0.18); break;
+      case "die":   this.tone(300,0.4,"sawtooth",0.3,t,60); this.noise(0.4,0.3,t); break;
+      case "boss":  this.tone(110,0.5,"sawtooth",0.3,t,55); this.noise(0.4,0.25,t); this.tone(165,0.5,"square",0.16,t+0.1,82); break;
+      case "win":   [523,659,784,1046].forEach((f,i)=>this.tone(f,0.16,"square",0.2,t+i*0.11)); break;
+      case "lock":  this.tone(880,0.06,"square",0.15,t); this.tone(1320,0.09,"square",0.15,t+0.05); break;
+      case "ui":    this.tone(520,0.05,"square",0.12,t); break;
+      case "deny":  this.tone(200,0.12,"square",0.18,t,140); break;
+      case "tele":  this.tone(400,0.3,"sine",0.2,t,1400); break;
+    }
+  },
+  /* --- MUSIC: step sequencer --- */
+  // Each track: bpm, bassline[], lead[] (note numbers, 0=rest), drums[]
+  // note n = frequency of A minor scale; we map n -> 110*2^((n)/12)
+  TRACKS:{},
+  defineTracks(){
+    const T={};
+    // 1 Frostline — cold, patient
+    T[1]={bpm:112,bass:[0,0,3,3,5,5,3,3],lead:[12,15,17,19,17,15,12,10],drums:[1,0,1,0,1,0,1,0],wave:"triangle",lw:"square",root:110};
+    // 2 Scrapyard — driving punk
+    T[2]={bpm:150,bass:[0,0,0,0,5,5,3,3],lead:[12,12,15,12,19,17,15,12],drums:[1,1,0,1,1,0,1,0],wave:"sawtooth",lw:"square",root:146.8};
+    // 3 Hydro plant — liquid funk
+    T[3]={bpm:126,bass:[0,3,0,3,5,5,7,3],lead:[12,14,15,19,14,12,15,17],drums:[1,0,1,1,0,1,1,0],wave:"square",lw:"triangle",root:130.8};
+    // 4 Emberworks — hot bossa to industrial
+    T[4]={bpm:138,bass:[0,0,5,0,3,3,8,3],lead:[15,17,19,22,19,17,15,12],drums:[1,0,1,0,1,1,0,1],wave:"sawtooth",lw:"sawtooth",root:164.8};
+    // 5 Skyline — airy
+    T[5]={bpm:120,bass:[0,5,7,5,10,5,7,3],lead:[12,16,19,16,21,19,16,14],drums:[1,0,0,1,0,0,1,0],wave:"triangle",lw:"sine",root:174.6};
+    // 6 Labyrinth — dark minimal
+    T[6]={bpm:104,bass:[0,0,1,1,3,3,1,1],lead:[12,13,15,13,18,17,15,13],drums:[1,0,0,0,1,0,0,0],wave:"square",lw:"triangle",root:98};
+    // 7 Reactor — tense pulse
+    T[7]={bpm:160,bass:[0,0,0,0,0,0,3,5],lead:[12,12,13,13,15,15,12,12],drums:[1,1,1,1,1,1,1,1],wave:"sawtooth",lw:"square",root:138.6};
+    // 8 Spire — grand
+    T[8]={bpm:132,bass:[0,3,5,7,5,3,2,0],lead:[12,15,19,22,19,15,17,19],drums:[1,0,1,0,1,0,1,1],wave:"triangle",lw:"square",root:155.6};
+    // boss
+    T.boss={bpm:172,bass:[0,0,1,1,0,0,5,5],lead:[12,12,15,18,20,18,15,13],drums:[1,1,1,1,1,1,1,1],wave:"sawtooth",lw:"sawtooth",root:103.8};
+    // title
+    T.title={bpm:96,bass:[0,0,3,3,5,5,7,7],lead:[12,15,19,15,17,19,22,19],drums:[1,0,0,0,1,0,0,0],wave:"triangle",lw:"sine",root:110};
+    this.TRACKS=T;
+  },
+  playMusic(name){
+    this.defineTracksOnce();
+    const t=name==="boss"||name==="title"?this.TRACKS[name]:this.TRACKS[name];
+    if(!t) return;
+    this.seq={cur:t,step:0,nextTime:this.ctx?this.ctx.currentTime+0.05:0,timer:0};
+    this.seq.stepDur=60/t.bpm/2; // 8th notes
+  },
+  defineTracksOnce(){ if(!this.TRACKS||!this.TRACKS[1]) this.defineTracks(); },
+  stopMusic(){ this.seq.cur=null; },
+  update(dt){
+    if(!this.ctx||!this.seq.cur) return;
+    const s=this.seq, t=s.cur;
+    const stepDur=60/t.bpm/2;
+    while(s.nextTime<this.ctx.currentTime+0.12){
+      const i=s.step%8;
+      const bassN=t.bass[i], leadN=t.lead[i], dr=t.drums[i];
+      if(bassN!==undefined){ const f=t.root*Math.pow(2,bassN/12)*0.5;
+        this.mTone(f,stepDur*0.9,t.wave,0.16,s.nextTime); }
+      if(leadN>0){ const f=t.root*2*Math.pow(2,leadN/12);
+        this.mTone(f,stepDur*0.55,t.lw,0.09,s.nextTime); }
+      if(dr){ this.mDrum(s.nextTime, i===0?0.5:0.28); }
+      s.step++; s.nextTime+=stepDur;
+    }
+  },
+  mTone(freq,dur,type,vol,when){
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,when);
+    g.gain.exponentialRampToValueAtTime(vol,when+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,when+dur);
+    o.connect(g); g.connect(this.musGain); o.start(when); o.stop(when+dur+0.05);
+  },
+  mDrum(when,vol){
+    const len=F(this.ctx.sampleRate*0.09), buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2);
+    const src=this.ctx.createBufferSource(); src.buffer=buf;
+    const g=this.ctx.createGain(); g.gain.value=vol*0.5;
+    const f=this.ctx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=700;
+    src.connect(f); f.connect(g); g.connect(this.musGain); src.start(when);
+  }
+};/* ============================================================
+   STORY — original. A lone swordsman, a refugee caravan, a
+   tyrant scientist, 8 elemental guardians. Megaman-Zero-4-shaped
+   story, different in every name, character and event.
+   ============================================================ */
+const PROLOGUE = [
+ {head:"PROLOGUE · 17:42", who:"ONLINE", txt:"Last transmission before the sky burned: a caravan of two hundred and eleven souls, walking the Ashen Road. They called the swordsman who walked ahead of them VOLTA. One green saber. No orders. No master."},
+ {head:"PROLOGUE · 17:43", who:"ONLINE", txt:"Over the ridge: NEO-NEBULA CITY. The tyrant engineer DOCTOR HALVANE rules its towers. His law is simple — no energy for outsiders. His guardians keep that law."},
+ {who:"CIELLA · caravan medic", txt:"Volta. The children can't take another night without power. They say every guardian holds a piece of the Dawn Route map. Eight pieces. Eight killers."},
+ {who:"VOLTA", txt:"Then I'll take all eight. Keep them walking. I'll be the light."},
+ {head:"THE HUNT", who:"ONLINE", txt:"Eight guardians. Eight stations on the Dawn Route. One blade. No second chances. — DIFFICULTY WILL BE MERCILESS. —"}
+];
+const INTERLUDES = {
+ 1:["The Frostline station falls quiet. In the guardian's core, half a map-segment: the Ashen Road bends east.", "CIELLA: 'One down. The caravan sleeps warm tonight, Volta. Don't let that be the last kindness you buy.'"],
+ 2:["The scrapyard fires die one by one. The second map-fragment hums: a tunnel runs beneath the city wall.", "A REFUGEE: 'That's the Scrapyard Ripper gone. My brother built drones for Halvane. They'll rebuild him. You know that, right?'"],
+ 3:["Water thunders through clean turbines again — and the third map-segment is wet with it: the tunnel feeds the harbor.", "CIELLA: 'The city pumps drinking water now. Whatever else you are tonight, you're a plumber of hope.'"],
+ 4:["Emberworks cools. The forge-guards stand down. Fragment four: the tunnel meets a freight elevator going up.", "VOLTA: 'Keep moving. Eight killers, four gone. Tell the caravan I said nothing. Don't make it a story.'"],
+ 5:["Skyline's winds die. Fifth fragment: the elevator opens onto a bridge across the city's throat.", "CIELLA: 'Half a map. You're doing the impossible, Volta. Stop smiling when you transmit. I can hear it.'"],
+ 6:["The labyrinth lights snap on, all at once, over broken optics. Fragment six: the bridge forks — NORTH leads to the reactor.", "A REFUGEE: 'Everyone in the caravan signed your name on the tent wall. Two hundred names. Don't read it. Just know it's there.'"],
+ 7:["The reactor's heartbeat slows... then steadies. Fragment seven: beyond the reactor, the spire. Halvane's own lift.", "CIELLA: 'One left. Whatever he's built at the top of that spire — it isn't a guardian. Guardians guard things. That thing he made is an ending.'"],
+ 8:["The Spire falls silent. In the Ashen Court, the last map-piece assembles the whole route — and the doors to the Dawn Core open.", "ONLINE: The Dawn Core is a child of light asking one question: can two hundred and eleven people be worth one city's ruin?", "VOLTA: 'That's not a question. That's a math problem. And I don't do math. I do routes.'"]
+};
+const FINALE = ["THE FINAL DOOR OPENS. Doctor Halvane waits with the thing he built from stolen dawn — a machine with your face, VOLTA.", "HALVANE: 'The caravan was always going to die. I merely offered them a quicker winter. You? You're an advertisement for hope. And I am going to end the campaign.'", "Beat him. Then climb. The Dawn Core is one door up.", "CIELLA: 'We're at the base of the spire. All of us. Two hundred and eleven. We heard the whole city go quiet, Volta. Come home. Any door. Come home.'"];
+const ENDINGS = {
+ win:["The Dawn Core dims to a warm ember. The spire's stolen light pours down the Ashen Road like sunrise at midnight.","HALVANE is gone — not dead, gone. Where he stood, only his coat and a habit of cruelty that no longer has an owner.","The caravan walks the Dawn Route at first light. Two hundred and eleven souls. One green saber. Zero losses.","CIELLA: 'The city will forget us by noon. But we won't forget the night. And we won't forget you.'"],
+ lose:["The saber goes dark on the Ashen Road.","The caravan scatters into the snow. The Dawn Route closes. Neo-Nebula keeps its lights.","Somewhere, Halvane files the caravan under 'seasonal loss'.","ONLINE: ...there is always another Volta. There is not always another caravan."]
+};
+
+/* ============================================================
+   STAGE + BOSS DATA — 8 stages, 8 guardians, element themes
+   ============================================================ */
+const STAGES=[
+ {i:1,name:"FROSTLINE",theme:"ice",boss:"GLACIVANE",   bossClass:"Glacivane", color:"#8fd8ff", sky:["#0b1220","#12304a"], accent:"#9fe8ff",
+  intro:"An abandoned weather station on the Ashen Road. Ice platforms, long drops.", enemyMix:["crawler","flyer"], density:0.8},
+ {i:2,name:"SCRAPYARD",theme:"scrap",boss:"RIVET",     bossClass:"Rivet",     color:"#ffb54d", sky:["#140d08","#2e1a0a"], accent:"#ffcf7a",
+  intro:"A mountain of dead machines. The city throws its failures here — and guards them.", enemyMix:["crawler","turret"], density:1.0},
+ {i:3,name:"HYDRO PLANT",theme:"water",boss:"NAIAD CORE",bossClass:"Naiad",   color:"#39d8ff", sky:["#04121c","#0a2e40"], accent:"#7ff0ff",
+  intro:"Waterfalls and humming turbines. Power enough for a city — or a caravan.", enemyMix:["flyer","jumper"], density:0.9},
+ {i:4,name:"EMBERWORKS",theme:"fire",boss:"CINDER",     bossClass:"Cinder",    color:"#ff7a45", sky:["#1a0606","#3a0f0a"], accent:"#ff9b6a",
+  intro:"A forge that never went cold. The floor itself burns.", enemyMix:["crawler","turret","jumper"], density:1.1},
+ {i:5,name:"SKYLINE",theme:"sky",boss:"ZEPHYRA",       bossClass:"Zephyra",   color:"#a7f3d0", sky:["#0a1020","#1b3a56"], accent:"#c7f7ff",
+  intro:"Bridges between towers with no railings. Wind pushes. So does everything else.", enemyMix:["flyer","jumper"], density:0.95},
+ {i:6,name:"LABYRINTH",theme:"dark",boss:"PHANTOM-SIX",bossClass:"Phantom6",  color:"#b28cff", sky:["#080614","#181030"], accent:"#cbb2ff",
+  intro:"A dark data-maze. Lights lie. Floors vanish. The walls keep score.", enemyMix:["crawler","turret"], density:1.0},
+ {i:7,name:"REACTOR",theme:"energy",boss:"VOLTNOVA",   bossClass:"Voltnova",  color:"#ffe14d", sky:["#12100a","#3a3010"], accent:"#fff29b",
+  intro:"The beating heart of Neo-Nebula. Everything here is charged. Including you.", enemyMix:["turret","jumper","flyer"], density:1.15},
+ {i:8,name:"THE SPIRE",theme:"spire",boss:"SOVEREIGN", bossClass:"Sovereign", color:"#ff4d5e", sky:["#0c0410","#2a0a26"], accent:"#ff8fa0",
+  intro:"Halvane's tower. The last door on the Dawn Route. The last guardian.", enemyMix:["crawler","flyer","turret","jumper"], density:1.25},
+];
+const FINALE_STAGE={i:9,name:"ASHEN COURT",theme:"final",boss:"DOCTOR HALVANE",bossClass:"Halvane",color:"#ff4d5e",sky:["#120410","#2c0a20"],accent:"#ffb0c0",
+  intro:"The Ashen Court at the spire's peak. Halvane and the thing he built from stolen dawn.", enemyMix:["crawler","flyer"], density:1.3};
+
+/* ---------- ENEMY TYPES (plain data; logic in Enemy class) ---------- */
+const ENEMY_TYPES={
+ crawler:{w:26,h:22,hp:14,speed:34,dmg:8, scrap:3, kind:"walker"},
+ jumper: {w:24,h:26,hp:18,speed:60,dmg:10,scrap:4, kind:"jumper"},
+ flyer:  {w:26,h:18,hp:10,speed:46,dmg:7, scrap:3, kind:"flyer", shootT:2.2},
+ turret: {w:28,h:26,hp:26,speed:0, dmg:0, scrap:5, kind:"turret", shootT:1.6},
+};/* ============================================================
+   INPUT — keyboard + touch. Buttons map into an `Input` record.
+   ============================================================ */
+const Input={x:0,jump:false,jumpHeld:false,dash:false,atk:false,shot:false,
+  _k:{},_raw:{x:0,jump:false,dash:false,atk:false,shot:false},_t:{x:0,jump:false,dash:false,atk:false,shot:false},
+  anyJump(){return this._raw.jump||this._t.jump;},};
+function setupInput(){
+  addEventListener("keydown",e=>{
+    if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(e.code)) e.preventDefault();
+    const k=e.key.toLowerCase();
+    if(Input._k[k]) return; Input._k[k]=true;
+    if(k==="arrowleft"||k==="a") Input._raw.x-=1;
+    if(k==="arrowright"||k==="d") Input._raw.x+=1;
+    if(k==="arrowup"||k==="w") Input._raw.x=0; // ignored vertically
+    if(k==="z"||k==="k"||k===" ") Input._raw.jump=true;
+    if(k==="c"||k==="l"||e.key==="Shift") Input._raw.dash=true;
+    if(k==="x"||k==="j") Input._raw.atk=true;
+    if(k==="v"||k==="i") Input._raw.shot=true;
+    if(k==="p") togglePause();
+    if(k==="escape") togglePause();
+    if(k==="m") { S.vol=S.vol>0?0:0.7; saveSettings(); AudioSys.setVol(); toast(S.vol?"Sound on":"Sound muted"); }
+    if(k==="enter"&&Game.state==="story") UI.storyNext();
+  });
+  addEventListener("keyup",e=>{
+    const k=e.key.toLowerCase();
+    Input._k[k]=false;
+    if(k==="arrowleft"||k==="a") Input._raw.x+=1;
+    if(k==="arrowright"||k==="d") Input._raw.x-=1;
+    if(k==="z"||k==="k"||k===" ") Input._raw.jump=false;
+    if(k==="c"||k==="l"||e.key==="Shift") Input._raw.dash=false;
+    if(k==="x"||k==="j") Input._raw.atk=false;
+    if(k==="v"||k==="i") Input._raw.shot=false;
+  });
+  /* touch: analog stick */
+  const dpad=document.getElementById("dpad"), stick=document.getElementById("stick");
+  let stickId=null,sx=0,sy=0;
+  dpad.addEventListener("pointerdown",e=>{ stickId=e.pointerId; sx=e.clientX; sy=e.clientY; dpad.setPointerCapture(e.pointerId); AudioSys.resume(); });
+  dpad.addEventListener("pointermove",e=>{ if(e.pointerId!==stickId) return;
+    const dx=e.clientX-sx, dy=e.clientY-sy, max=46;
+    const nx=clamp(dx/max,-1,1), ny=clamp(dy/max,-1,1);
+    Input._t.x=nx; stick.style.transform=`translate(calc(-50% + ${nx*30}px), calc(-50% + ${ny*22}px))`;
+    Input._t.jump = ny<-0.55; });
+  const stickEnd=e=>{ if(e.pointerId!==stickId) return; stickId=null; Input._t.x=0; Input._t.jump=false;
+    stick.style.transform="translate(-50%,-50%)"; };
+  dpad.addEventListener("pointerup",stickEnd); dpad.addEventListener("pointercancel",stickEnd);
+  /* touch: action buttons */
+  const bindBtn=(el,prop)=>{
+    el.addEventListener("pointerdown",e=>{ e.preventDefault(); Input._t[prop]=true; el.classList.add("on"); AudioSys.resume(); });
+    const off=e=>{ Input._t[prop]=false; el.classList.remove("on"); };
+    el.addEventListener("pointerup",off); el.addEventListener("pointercancel",off); el.addEventListener("pointerleave",off);
+  };
+  bindBtn(document.getElementById("bJump"),"jump");
+  bindBtn(document.getElementById("bAtk"),"atk");
+  bindBtn(document.getElementById("bDash"),"dash");
+  bindBtn(document.getElementById("bShot"),"shot");
+  document.getElementById("bPause2").addEventListener("pointerdown",e=>{e.preventDefault();togglePause();});
+}
+
+/* ============================================================
+   GAME STATE
+   ============================================================ */
+const Game={ state:"title", stageNum:1, finale:false, t:0, stageTime:0,
+  camX:0,camY:0, shake:0, kills:0, deaths:0, runScrap:0, frame:0,
+  boss:null, bossPhase:0, freezeFrames:0, flash:0, checkpoint:null, bossIntroDone:false };
+
+/* ============================================================
+   PHYSICS / ENTITIES
+   ============================================================ */
+let solids=[], hazards=[], platforms=[], pickups=[], bullets=[], particles=[], enemies=[], triggers=[], decos=[];
+class Solid{constructor(x,y,w,h,kind="block"){this.x=x;this.y=y;this.w=w;this.h=h;this.kind=kind;}}
+class Hazard{constructor(x,y,w,h,kind="spike"){this.x=x;this.y=y;this.w=w;this.h=h;this.kind=kind;}}
+
+/* ---------- PLAYER ---------- */
+const Player={
+  x:0,y:0,vx:0,vy:0,w:20,h:34,face:1,onGround:false,
+  hp:16,maxHp:16,en:100,maxEn:100,lives:2,scrap:0,
+  jumps:0,maxJumps:2,dashedAir:false,dashT:0,dashCd:0,
+  atkT:0,slashBox:null,slashT:0,invT:0,charge:0,shooting:false,
+  respawnT:0,dead:false,coyote:0,
+  reset(x,y){
+    this.x=x;this.y=y;this.vx=0;this.vy=0;this.hp=this.maxHp;this.en=this.maxEn;
+    this.jumps=this.maxJumps;this.dashedAir=false;this.dashT=0;this.atkT=0;this.invT=0;this.charge=0;
+    this.dead=false;this.respawnT=0;this.slashBox=null;
+  },
+  hurt(dmg){
+    if(this.invT>0||this.dead) return;
+    const d=Math.max(1,Math.round(dmg*D().enemyDmg));
+    this.hp-=d; this.invT=0.9; Game.shake=Math.max(Game.shake,6); Game.flash=0.25;
+    AudioSys.sfx("hurt"); dmgNum(this.x+this.w/2,this.y-6,"-"+d,"#ff6d7e");
+    if(this.hp<=0){ this.die(); }
+  },
+  die(){
+    this.dead=true; this.respawnT=2.0; Game.deaths++;
+    AudioSys.sfx("die"); Game.shake=10;
+    burst(this.x+this.w/2,this.y+this.h/2,26,"#7ff0ff");
+    this.lives--;
+    if(this.lives<0){ Game.over("out"); return; }
+  },
+  update(dt){
+    if(this.dead){
+      this.respawnT-=0;
+      this.respawnT-=dt; if(this.respawnT<=0){
+        const c=Game.checkpoint||{x:this.x,y:this.y};
+        this.reset(c.x,c.y); this.lives=Math.max(this.lives,0);
+      }
+      return;
+    }
+    const wasGround=this.onGround;
+    /* --- input --- */
+    const ax=clamp(Input._raw.x+Input._t.x,-1,1);
+    const wantJump=Input._raw.jump||Input._t.jump;
+    const wantDash=Input._raw.dash||Input._t.dash;
+    const wantAtk=Input._raw.atk||Input._t.atk;
+    const wantShot=Input._raw.shot||Input._t.shot;
+    /* --- dash --- */
+    if(this.dashCd>0) this.dashCd-=dt;
+    if(wantDash&&this.dashCd<=0&&(ax!==0||this.onGround)&&this.en>=15){
+      this.dashT=0.16; this.dashCd=0.42; this.en-=15; this.dashedAir=true;
+      this.vx=ax!==0?ax*340:(this.face*340); if(ax!==0)this.face=ax>0?1:-1;
+      AudioSys.sfx("dash");
+      for(let i=0;i<6;i++) particle(this.x+this.w/2,this.y+this.h-4,"#9fe8ff",rnd(0.5)+.3);
+    }
+    if(this.dashT>0){ this.dashT-=0; this.dashT-=dt; this.vy=Math.min(this.vy,40); this.invT=Math.max(this.invT,0.05); }
+    /* --- move --- */
+    if(this.dashT>0){ /* keep dash velocity */ }
+    else{
+      const target=ax*150;
+      this.vx=lerp(this.vx,target,clamp(dt*10,0,1));
+      if(ax!==0) this.face=ax>0?1:-1;
+    }
+    /* --- jump --- */
+    if(wantJump&&!Input.jump&&this.jumps>0){
+      this.vy=-300; this.jumps--; AudioSys.sfx("jump");
+      for(let i=0;i<5;i++) particle(this.x+this.w/2,this.y+this.h,"#bfefff",0.4);
+    }
+    Input.jump=wantJump;
+    if(this.onGround){ this.jumps=this.maxJumps; this.dashedAir=false; }
+    /* --- gravity --- */
+    this.vy+=880*dt; if(this.vy>560) this.vy=560;
+    /* --- attack --- */
+    if(this.atkT>0) this.atkT-=dt;
+    if(this.slashT>0){ this.slashT-=dt; if(this.slashT<=0) this.slashBox=null; }
+    if(wantAtk&&this.atkT<=0){
+      this.atkT=0.26; this.slashT=0.12;
+      this.slashBox={x:this.face>0?this.x+this.w-4:this.x-26,y:this.y+2,w:30,h:this.h-4};
+      AudioSys.sfx("slash");
+    }
+    /* --- shot / charge --- */
+    if(wantShot&&!this.shooting){ this.shooting=true; this.charge=0; }
+    if(this.shooting){
+      this.charge+=dt;
+      if(this.charge>0.45&&!this.chargeS){ this.chargeS=true; AudioSys.sfx("charge"); }
+    } else {
+      if(this.charge>0.2){
+        const lvl=this.charge>1.1?2:this.charge>0.45?1:0;
+        bullets.push(playerBolt(this.x+this.w/2,this.y+8,this.face,lvl));
+        AudioSys.sfx("bolt");
+      }
+      this.charge=0; this.chargeS=false;
+    }
+    /* --- energy regen --- */
+    this.en=Math.min(this.maxEn,this.en+dt*14);
+    /* --- apply physics --- */
+    const res=moveAndCollide(this,dt,solids,platforms);
+    if(res.hitGround){ if(this.vy>340){ Game.shake=Math.max(Game.shake,4);} this.vy=0; this.onGround=true; }
+    else this.onGround=false;
+    if(res.hitCeil) this.vy=Math.max(this.vy,0);
+    /* --- hazards --- */
+    for(const hz of hazards){ if(overlap(this,hz)){ this.hurt(hz.kind==="spike"?12:8); this.vy=-260; } }
+    /* --- pickups --- */
+    for(let i=pickups.length-1;i>=0;i--){ const p=pickups[i];
+      if(overlap(this,p)){ pickups.splice(i,1); this.scrap+=p.v; Game.runScrap+=p.v; AudioSys.sfx("pickup");
+        dmgNum(p.x,p.y,"+"+p.v,"#ffd75e");
+      } else { p.t+=dt; p.y+=Math.sin(p.t*4)*0.2; }
+    }
+    /* --- slash hits --- */
+    if(this.slashBox) for(const e of enemies){ if(!e.dead&&overlap(this.slashBox,e)){ e.hurtBy(7+this.chargeS?3:0); } }
+    /* --- invuln timer --- */
+    if(this.invT>0) this.invT-=dt;
+    if(!this.dead&&this.y>LEVEL.h+80){ this.hurt(999); }
+  }
+};
+
+function playerBolt(x,y,face,lvl){
+  return {x,y,w:lvl===2?14:lvl===1?10:6,h:6,vx:face*(lvl===2?380:300),vy:0,friendly:true,dmg:4+lvl*5,r:lvl,life:1.1,lvl};
+}
+function overlap(a,b){ return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y; }
+function moveAndCollide(e,dt,solids,platforms){
+  const res={hitGround:false,hitCeil:false,hitWall:false};
+  /* X */
+  e.x+=e.vx*dt;
+  for(const s of solids){
+    if(overlap(e,s)){
+      if(e.vx>0) e.x=s.x-e.w-0.01; else if(e.vx<0) e.x=s.x+s.w+0.01;
+      e.vx=0; res.hitWall=true;
+    }
+  }
+  /* Y */
+  e.y+=e.vy*dt;
+  e.dropThrough=e.dropThrough||0;
+  for(const s of solids){
+    if(overlap(e,s)){
+      if(e.vy>0){ e.y=s.y-e.h-0.01; res.hitGround=true; }
+      else if(e.vy<0){ e.y=s.y+s.h+0.01; res.hitCeil=true; }
+      e.vy=0;
+    }
+  }
+  /* one-way platforms: only when falling and feet above platform top */
+  if(platforms) for(const p of platforms){
+    if(e.vy>=0&&e.dropThrough<=0){
+      const feetPrev=e.y+e.h-e.vy*dt;
+      if(feetPrev<=p.y+2&&e.y+e.h>=p.y&&e.x+e.w>p.x&&e.x<p.x+p.w){
+        e.y=p.y-e.h-0.01; e.vy=0; res.hitGround=true;
+      }
+    }
+  }
+  if(e.dropThrough>0) e.dropThrough-=dt;
+  return res;
+}
+
+/* ---------- ENEMY ---------- */
+class Enemy{
+  constructor(type,x,y,patrol){
+    const t=ENEMY_TYPES[type];
+    this.type=type;this.x=x;this.y=y;this.w=t.w;this.h=t.h;
+    this.hp=Math.round(t.hp*D().hp);this.maxHp=this.hp;
+    this.speed=t.speed*(type==="crawler"?D().enemyRate:1);
+    this.dmg=t.dmg;this.scrap=t.scrap;this.kind=t.kind;
+    this.vx=0;this.vy=0;this.dir=Math.random()<.5?-1:1;this.shootT=t.shootT||0;
+    this.dead=false;this.homeX=x;this.homeY=y;this.t=rnd(6);this.patrol=patrol||irnd(80,140);
+    this.hitT=0;this.alerted=false;this.jumpCd=0;
+  }
+  hurtBy(dmg,knock){
+    this.hp-=dmg; this.hitT=0.12; this.alerted=true;
+    if(knock) this.vx=knock;
+    AudioSys.sfx("hit");
+    dmgNum(this.x+this.w/2,this.y,""+Math.round(dmg),"#ffe14d");
+    if(this.hp<=0){
+      this.dead=true; Game.kills++; AudioSys.sfx("kill");
+      burst(this.x+this.w/2,this.y+this.h/2,12,"#ffd75e");
+      dropScrap(this.x+this.w/2,this.y+this.h/2,this.scrap);
+    }
+  }
+  update(dt){
+    if(this.hitT>0)this.hitT-=dt;
+    const P=Player;
+    switch(this.kind){
+      case "walker":
+        this.vx=this.dir*this.speed;
+        this.vy+=900*dt;
+        { const r=moveAndCollide(this,dt,solids,platforms);
+          if((res_wall(this,r)||this.x<this.homeX-this.patrol&&this.dir<0||this.x>this.homeX+this.patrol&&this.dir>0)) this.dir*=-1;
+        }
+        break;
+      case "jumper":
+        this.vy+=900*dt; this.jumpCd-=dt;
+        { const r=moveAndCollide(this,dt,solids,platforms);
+          if(r.hitGround){ this.vx=0; if(this.jumpCd<=0){ this.vy=-330; this.vx=(P.x>this.x?1:-1)*this.speed; this.jumpCd=irnd(900,1400)/1000; } }
+          else if(Math.abs(this.vx)<4){ this.vx=(P.x>this.x?1:-1)*this.speed*0.5; }
+        }
+        break;
+      case "flyer":
+        this.t+=0; this.t+=dt;
+        { const dx=P.x-this.x, dy=P.y-this.y, d=Math.hypot(dx,dy);
+          if(d<260) this.alerted=true;
+          if(this.alerted){ this.vx=lerp(this.vx,clamp(dx,-70,70)*0.9,dt*2); this.vy=lerp(this.vy,clamp(dy,-70,70)*0.8+Math.sin(this.t*3)*30,dt*2); }
+          else { this.vx=Math.cos(this.t)*this.speed*0.6; this.vy=Math.sin(this.t*1.5)*30; }
+          this.x+=this.vx*dt; this.y+=this.vy*dt;
+          this.shootT-=dt;
+          if(this.shootT<=0&&d<300){ this.shootT=2.2/D().enemyRate;
+            bullets.push({x:this.x+this.w/2,y:this.y+this.h/2,w:8,h:8,vx:dx/d*150*D().enemyRate,vy:dy/d*150*D().enemyRate,friendly:false,dmg:this.dmg,life:3,enemyBolt:true}); AudioSys.sfx("bolt"); }
+        }
+        break;
+      case "turret":
+        { const dx=P.x-this.x,dy=P.y-this.y,d=Math.hypot(dx,dy);
+          this.shootT-=dt;
+          if(this.shootT<=0&&d<340){ this.shootT=1.6/D().enemyRate;
+            bullets.push({x:this.x+this.w/2,y:this.y+4,w:8,h:8,vx:dx/d*170*D().enemyRate,vy:dy/d*170*D().enemyRate,friendly:false,dmg:this.dmg,life:3.5,enemyBolt:true}); AudioSys.sfx("bolt"); }
+        }
+        break;
+    }
+    if(this.y>LEVEL.h+60) this.dead=true;
+  }
+}
+function res_wall(e,r){ return r.hitWall; }
+
+/* ---------- BULLETS ---------- */
+function updateBullets(dt){
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
+    let gone=b.life<=0;
+    if(!b.friendly){
+      /* slash can reflect */
+      if(Player.slashBox&&overlap(b,Player.slashBox)){ b.friendly=true; b.vx*=-1.15; b.vy*=-1; b.dmg+=4; AudioSys.sfx("lock"); }
+      else if(!Player.dead&&overlap(b,Player)){ Player.hurt(b.dmg); gone=true; burst(b.x,b.y,5,"#ff8f9e"); }
+    } else {
+      for(const e of enemies){ if(!e.dead&&overlap(b,e)){ e.hurtBy(b.dmg); gone=true; burst(b.x,b.y,4,"#ffe14d"); break; } }
+      if(Game.boss&&!Game.boss.dead&&overlap(b,Game.boss)){ hurtBoss(b.dmg); gone=true; }
+    }
+    if(!gone) for(const s of solids){ if(overlap(b,s)){ gone=true; burst(b.x,b.y,3,"#9fd6f5"); break; } }
+    if(gone) bullets.splice(i,1);
+  }
+}
+
+/* ---------- PARTICLES / FX ---------- */
+function particle(x,y,col,life){ particles.push({x,y,vx:rnd(60)-30,vy:-rnd(60),col,life:life||0.5,max:life||0.5}); }
+function burst(x,y,n,col){ for(let i=0;i<n;i++) particles.push({x,y,vx:rnd(140)-70,vy:rnd(100)-60,col,life:rnd(0.5)+0.3,max:0.8}); }
+function dmgNums=[];var dmgNums;
+function dmgNum(x,y,txt,col){ if(!S.dmgNum) return; dmgNums.push({x,y,txt,col,t:0.7}); }
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i];
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=300*dt; p.life-=dt;
+    if(p.life<=0) particles.splice(i,1); }
+  for(let i=dmgNums.length-1;i>=0;i--){ const d=dmgNums[i]; d.t-=dt; d.y-=26*dt; if(d.t<=0) dmgNums.splice(i,1); }
+}
+function dropScrap(x,y,n){ let left=n; while(left>0){ const v=left>=5?5:left>=2?2:1; left-=v;
+  pickups.push({x:x+rnd(16)-8,y:y+rnd(10)-5,w:10,h:10,v,t:0,vx:0,vy:-rnd(60)}); } }
