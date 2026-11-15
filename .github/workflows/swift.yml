@@ -79,10 +79,32 @@ jobs:
                 const key = upgrades[0].key;
                 const old = save.upgrades[key];
                 const bought = purchase(save, key);
-                persist(); if (typeof flushSave === 'function') flushSave();
+                persist(); flushSave();
                 return { bought, spent: save.bananas < before, upgraded: save.upgrades[key] === old + 1 };
               });
               assert(economy.bought && economy.spent && economy.upgraded, 'Upgrade changes balance and stats');
+              const abilities = await page.evaluate(() => {
+                launch(1);
+                save.bananas = 1000;
+                const before = save.bananas;
+                const bought = buyLoadout(save, 'boomerang');
+                const spent = save.bananas === before - 60;
+                const energy = player.en;
+                const used = useAbility('skill');
+                const fired = shots.some(s => s.banana && s.friendly);
+                const blocked = !useAbility('skill');
+                const drained = player.en === energy - 20;
+                buyLoadout(save, 'shield');
+                player.en = player.maxEn;
+                const shield = useAbility('ult') && player.inv >= 3;
+                buyLoadout(save, 'bat');
+                const clean = cleanSave(JSON.parse(JSON.stringify(save)));
+                persist();
+                return { bought, spent, used, fired, blocked, drained, shield,
+                  equipped: clean.loadout.character === 'bat',
+                  stick: !!document.getElementById('stick') };
+              });
+              assert(Object.values(abilities).every(Boolean), 'Abilities, costs, cooldowns, shield, loadout persistence and joystick exist');
               const balance = await page.evaluate(() => save.bananas);
               await page.reload({ waitUntil: 'networkidle' });
               assert.equal(await page.evaluate(() => save.bananas), balance, 'Save survives reload');
