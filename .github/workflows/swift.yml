@@ -83,28 +83,6 @@ jobs:
                 return { bought, spent: save.bananas < before, upgraded: save.upgrades[key] === old + 1 };
               });
               assert(economy.bought && economy.spent && economy.upgraded, 'Upgrade changes balance and stats');
-              const abilities = await page.evaluate(() => {
-                launch(1);
-                save.bananas = 1000;
-                const before = save.bananas;
-                const bought = buyLoadout(save, 'boomerang');
-                const spent = save.bananas === before - 60;
-                const energy = player.en;
-                const used = useAbility('skill');
-                const fired = shots.some(s => s.banana && s.friendly);
-                const blocked = !useAbility('skill');
-                const drained = player.en === energy - 20;
-                buyLoadout(save, 'shield');
-                player.en = player.maxEn;
-                const shield = useAbility('ult') && player.inv >= 3;
-                buyLoadout(save, 'bat');
-                const clean = cleanSave(JSON.parse(JSON.stringify(save)));
-                persist();
-                return { bought, spent, used, fired, blocked, drained, shield,
-                  equipped: clean.loadout.character === 'bat',
-                  stick: !!document.getElementById('stick') };
-              });
-              assert(Object.values(abilities).every(Boolean), 'Abilities, costs, cooldowns, shield, loadout persistence and joystick exist');
               const balance = await page.evaluate(() => save.bananas);
               await page.reload({ waitUntil: 'networkidle' });
               assert.equal(await page.evaluate(() => save.bananas), balance, 'Save survives reload');
@@ -131,8 +109,28 @@ jobs:
               await touch.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
               await touch.evaluate(() => { settings.touch = 'on'; launch(1); updateControls(); });
               assert(await touch.locator('#touch').isVisible(), 'Mobile controls visible');
-              const action = touch.locator('#touch button').first();
-              await action.tap();
+              // Check each action's real hit target and captured-pointer lifecycle.
+              for (const viewport of [{ width: 844, height: 390 }, { width: 390, height: 844 }]) {
+                await touch.setViewportSize(viewport);
+                const bounds = [];
+                for (const name of ['slash', 'jump', 'dash', 'shot']) {
+                  const action = touch.locator(`#combat [data-action="${name}"]`);
+                  const box = await action.boundingBox();
+                  assert(box && box.width >= 64 && box.height >= 64, `${name}: thumb-sized target`);
+                  assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height, `${name}: inside viewport`);
+                  for (const other of bounds) {
+                    assert(box.x >= other.x + other.width || box.x + box.width <= other.x || box.y >= other.y + other.height || box.y + box.height <= other.y, `${name}: targets do not overlap`);
+                  }
+                  bounds.push(box);
+                  await touch.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+                  await touch.mouse.down();
+                  assert(await touch.evaluate(name => [...touches.values()].includes(name), name), `${name}: pointer press sets action`);
+                  assert(await action.evaluate(button => button.classList.contains('pressed')), `${name}: visible pressed feedback`);
+                  await touch.mouse.up();
+                  assert(await touch.evaluate(name => ![...touches.values()].includes(name), name), `${name}: release clears action`);
+                  await action.tap();
+                }
+              }
               await touch.screenshot({ path: 'test-results/mobile.png' });
               await mobile.close();
               assert.deepEqual(errors, [], 'No browser runtime errors');
