@@ -20,14 +20,11 @@ function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))
 function writeJSON(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch(e){storageOK=false;return false}}
 const defaults=()=>({version:2,bananas:0,upgrades:{blade:0,bolt:0,armor:0,energy:0,magnet:0},unlocked:1,cleared:[],best:{},stage:1,kills:0,deaths:0,time:0,won:false});
 function cleanSave(raw){const d=defaults();if(!raw||raw.version!==2)return d;for(const k of ['bananas','kills','deaths','time'])d[k]=Number.isFinite(raw[k])?clamp(Math.floor(raw[k]),0,1e9):0;d.unlocked=clamp(Math.floor(Number(raw.unlocked)||1),1,9);d.stage=clamp(Math.floor(Number(raw.stage)||1),1,d.unlocked);d.cleared=Array.isArray(raw.cleared)?[...new Set(raw.cleared.filter(n=>Number.isInteger(n)&&n>=1&&n<=9))]:[];for(const k in d.upgrades)d.upgrades[k]=clamp(Math.floor(Number(raw.upgrades?.[k])||0),0,5);for(let n=1;n<=9;n++)if(Number.isFinite(raw.best?.[n])&&raw.best[n]>0)d.best[n]=raw.best[n];d.won=raw.won===true;return d}
-let save=cleanSave(readJSON(SEED,null));const loadedPrefs=readJSON(SETTINGS,{}),pref=loadedPrefs&&typeof loadedPrefs==='object'?loadedPrefs:{},settings={volume:clamp(Number(pref.volume??.7)||0,0,1),music:clamp(Number(pref.music??.5)||0,0,1),sfx:clamp(Number(pref.sfx??.7)||0,0,1),difficulty:['story','hard','nightmare'].includes(pref.difficulty)?pref.difficulty:'hard',touch:['auto','on','off'].includes(pref.touch)?pref.touch:'auto',shake:pref.shake!==false};
+let save=cleanSave(readJSON(SEED,null));const pref=readJSON(SETTINGS,{}),settings={volume:clamp(Number(pref.volume??.7)||0,0,1),music:clamp(Number(pref.music??.5)||0,0,1),sfx:clamp(Number(pref.sfx??.7)||0,0,1),difficulty:['story','hard','nightmare'].includes(pref.difficulty)?pref.difficulty:'hard',touch:['auto','on','off'].includes(pref.touch)?pref.touch:'auto',shake:pref.shake!==false};
 const DIFFICULTY={story:{hp:1.5,damage:.6,speed:.85,retries:5,label:'STORY'},hard:{hp:1,damage:1,speed:1,retries:2,label:'HARD'},nightmare:{hp:.8,damage:1.6,speed:1.18,retries:0,label:'NIGHTMARE'}};const diff=()=>DIFFICULTY[game.difficulty||settings.difficulty];
 const upgrades=[{key:'blade',name:'Prism Saber',base:30,desc:'+2 slash damage per level; longer reach.'},{key:'bolt',name:'Pulse Blaster',base:25,desc:'+2 bolt damage per level, including charge shots.'},{key:'armor',name:'Gorilla Guard',base:30,desc:'+6 maximum HP per level. Purchase repairs armor.'},{key:'energy',name:'Ion Capacitor',base:25,desc:'+15 energy and faster charging per level.'},{key:'magnet',name:'Banana Magnet',base:15,desc:'+22 pixel banana pickup range per level.'}];
 function upgradeCost(item,level){return Math.round(item.base*Math.pow(1.65,level))}function purchase(data,key){const item=upgrades.find(u=>u.key===key);if(!item)return false;const level=data.upgrades[key],cost=upgradeCost(item,level);if(level>=5||data.bananas<cost)return false;data.bananas-=cost;data.upgrades[key]++;return true}
-let saveTimer=null;
-function flushSave(){if(saveTimer!==null){clearTimeout(saveTimer);saveTimer=null}writeJSON(SEED,save)}
-function persist(){if(saveTimer===null)saveTimer=setTimeout(flushSave,300)}
-let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
+function persist(){writeJSON(SEED,save)}let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
 const stages=[
 {name:'PRISM HOLLOW',boss:'CARAPACE-IX',kind:'beetle',color:'#a776ff',sky:'#1b1b40',pattern:'fan',text:'The caravan seed-vault is failing. Kip must reopen eight climate relays before the last living orchard freezes. A beetle siege engine nests in the crystal mine.'},
 {name:'SCRAP CANOPY',boss:'IRON KONG',kind:'gorilla',color:'#77c7a3',sky:'#0c2830',pattern:'slam',text:'Steel vines feed an abandoned salvage garden. Iron Kong hoards its soil filters. Mechanic Nori needs those filters, not another trophy.'},
@@ -101,12 +98,19 @@ function drawRunner(p,ghost=false){
  if(p.dead)return;if(!ghost&&p.inv>0&&Math.floor(tick/5)%2)return;
  const run=Math.abs(p.vx)>12&&p.ground,step=run?Math.sin(tick*.45)*3:0;
  ctx.save();ctx.translate(Math.round(p.x+p.w/2),Math.round(p.y));ctx.scale(p.face,1);
- rect(-10,23,7,4,'#1a1933');rect(-13,18,5,7,'#9b6856');rect(-15,13,4,7,'#b98163');rect(-13,11,5,3,'#cf9976');
- rect(-6,22+step,5,8-step,'#47788b');rect(2,22-step,5,8+step,'#3ad4c7');rect(-8,28,8,3,'#d2e7de');rect(2,28,9,3,'#e2fff0');
- rect(-7,12,14,12,'#185565');rect(-7,12,14,4,'#55e2cf');rect(-5,16,9,6,'#2e9eaa');rect(-2,17,3,3,'#ffe18b');
- rect(-9,1,4,8,'#ae725c');rect(6,2,4,7,'#ae725c');rect(-6,0,13,13,'#a36755');rect(-7,0,14,4,'#66eed7');rect(-5,-2,10,3,'#b3fff0');rect(-4,6,11,7,'#e6af7d');rect(0,5,7,4,'#192743');rect(3,5,4,2,'#b9fdff');
- const arm=p.attack>0?5:0;rect(5,13,5,8,'#58d5c7');rect(7,18-arm,6,4,'#e6af7d');rect(10,17-arm,3,6,'#6a5fa1');
- rect(-7,9,5,3,'#ff797a');rect(-16,10+Math.sin(tick*.12)*2,10,3,'#ce4b6a');rect(-21,12+Math.sin(tick*.12)*2,7,2,'#ff9a8c');
+ // Original armored cartoon monkey: brown fur, tan face, red hunter armor, white boots, curled tail.
+ const fur='#7a4a26',furL='#a8693a',face='#f0c890',red='#d8283a',redL='#ff5a5a',redD='#8a1424',boot='#eef3ff',bootD='#9aa8c8',out='#1a1020',air=!p.ground,sway=Math.sin(tick*.1)*1.5,dash=p.dash>0;
+ if(dash)ctx.rotate(.12);
+ rect(-11,13+sway,3,9,fur);rect(-14,9+sway,4,5,fur);rect(-15,6+sway,4,4,furL);rect(-12,5+sway,3,2,furL);
+ const l1=air?-3:step,l2=air?1:-step;
+ rect(-6,21+l1,5,6,redD);rect(1,21+l2,5,6,red);rect(-8,26+l1,8,4,bootD);rect(1,26+l2,9,4,boot);rect(-8,29+l1,8,1,out);rect(1,29+l2,9,1,out);
+ rect(-8,11,15,11,out);rect(-7,12,13,9,red);rect(-5,13,9,4,redL);rect(-7,19,13,2,'#3a3a5a');rect(-1,14,3,3,'#4fd8ff');rect(-1,14,1,1,'#e8ffff');
+ rect(-10,2,5,6,fur);rect(-9,3,3,4,'#e89a8a');
+ rect(-7,-1,14,13,out);rect(-6,0,12,11,fur);rect(-6,0,4,4,furL);rect(-2,4,9,8,face);rect(-1,11,7,1,'#d8a870');
+ rect(2,5,2,3,out);rect(2,5,1,1,'#ffffff');rect(5,4,2,1,fur);rect(6,9,2,1,'#5a3018');rect(3,10,3,1,'#5a3018');
+ rect(-8,-3,15,4,red);rect(-6,-5,11,2,redL);rect(-8,0,3,6,red);rect(-1,-4,3,3,'#4fd8ff');rect(5,-2,3,2,redL);
+ const arm=p.attack>0?5:0;rect(3,13,5,7,redD);rect(4,14,3,4,red);rect(6,18-arm,5,4,boot);
+ if(p.attack>0){rect(9,15-arm,2,6,'#666a80');rect(11,10-arm,2,8,'#b6fff0')}
  if(p.charge>.1){rect(12,17,5,4,p.charge>.9?'#fff5a7':'#83cfff');if(tick%12<6)rect(11,15,7,8,'#c7fdff')}
  ctx.restore();
  if(p.attack>0){const b=slashBox(),phase=1-p.attack/(p.combo===3?.27:.19);ctx.save();ctx.translate(p.x+9,p.y+16);ctx.scale(p.face,1);ctx.strokeStyle=p.combo===3?'#fff2b0':'#c4ffed';ctx.lineWidth=p.combo===3?5:3;ctx.beginPath();ctx.arc(0,0,b.w,-1.3+phase*.6,1.2+phase*.6);ctx.stroke();ctx.strokeStyle='#52e1d8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,b.w-6,-1.1,1.2);ctx.stroke();ctx.restore()}
@@ -155,17 +159,12 @@ function render(){
  }else{for(let i=0;i<20;i++){const x=(i*37+tick*.1)%W,y=240+Math.sin(i+tick*.01)*18;rect(x,y,3,3,'#8fd5ce')}label('DAWN CARAVAN // SIGNAL STANDBY',240,300,'#7292a6',8,'center')}
 }
 let lastFrame=0,accumulator=0;
-// Clear stale frame debt when returning from a background tab.
-document.addEventListener('visibilitychange',()=>{lastFrame=0;accumulator=0;if(document.hidden)flushSave()});
-canvas.addEventListener('contextmenu',e=>e.preventDefault());
-$('touch').addEventListener('contextmenu',e=>e.preventDefault());
 function frame(now){const elapsed=lastFrame?Math.min((now-lastFrame)/1000,.1):0;lastFrame=now;accumulator+=elapsed;
  // Fixed 120 Hz simulation prevents refresh-rate-dependent movement and collision tunneling.
  let steps=0;while(accumulator>=1/120&&steps<12){pollInput();update(1/120);game.shake=Math.max(0,game.shake-25/120);accumulator-=1/120;tick++;steps++}
  audio.update();render();requestAnimationFrame(frame);
 }
-addEventListener('pagehide',flushSave);addEventListener('resize',updateControls);
-addEventListener('storage',e=>{if(e.key===SEED)notify('Save changed in another tab. Use one game tab to avoid overwriting progress.')});
+addEventListener('pagehide',persist);addEventListener('resize',updateControls);
 menu();requestAnimationFrame(frame);
 </script>
 </body>
