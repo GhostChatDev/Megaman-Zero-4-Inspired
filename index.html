@@ -9,7 +9,7 @@
 </head>
 <body>
 <div id="shell"><div id="view"><canvas id="game" width="480" height="320" aria-label="Banana Signal action platformer"></canvas><div id="top" hidden><button id="shopButton" aria-label="Upgrade shop">UPGRADES</button><button id="pauseButton" aria-label="Pause game">Ⅱ</button></div></div></div>
-<div id="touch" hidden aria-label="Touch game controls"><div id="move"><button data-action="left" aria-label="Move left">◀</button><button data-action="right" aria-label="Move right">▶</button></div><div id="combat"><button data-action="slash" class="attack">SLASH</button><button data-action="jump">JUMP</button><button data-action="dash">DASH</button><button data-action="shot">BOLT</button></div></div>
+<div id="touch" hidden aria-label="Touch game controls"><div id="move"><div id="joy" aria-label="Movement joystick"><div id="knob"></div></div></div><div id="combat"><button data-action="skill" class="skill">SKILL</button><button data-action="ult" class="skill">ULT</button><button data-action="shot">BOLT</button><button data-action="dash">DASH</button><button data-action="slash" class="attack">SLASH</button><button data-action="jump">JUMP</button></div></div>
 <div id="overlay"><main id="panel"></main></div><div id="notice" role="status" aria-live="polite"></div>
 <script>
 'use strict';
@@ -159,63 +159,6 @@ function frame(now){const elapsed=lastFrame?Math.min((now-lastFrame)/1000,.1):0;
 }
 addEventListener('pagehide',persist);addEventListener('resize',updateControls);
 menu();requestAnimationFrame(frame);
-</script>
-<script>
-'use strict';
-// v3 add-on: joystick, SKILL/ULT, banana skills + characters, animations, no-zoom, harder.
-function flushSave(){persist();saveExtras()}
-const EXTRA='banana_signal_extras_v1',exRaw=readJSON(EXTRA,{});
-const extras={skills:Array.isArray(exRaw.skills)?exRaw.skills.filter(s=>['boomerang','shield','storm'].includes(s)):[],chars:Array.isArray(exRaw.chars)?exRaw.chars.filter(c=>['bat','hood'].includes(c)):[],skill:['boomerang','shield'].includes(exRaw.skill)?exRaw.skill:'boomerang',char:['kip','bat','hood'].includes(exRaw.char)?exRaw.char:'kip'};
-if(extras.char!=='kip'&&!extras.chars.includes(extras.char))extras.char='kip';
-function saveExtras(){writeJSON(EXTRA,extras)}
-const SKILLS=[{key:'boomerang',name:'Banana Boomerang',cost:120,en:25,desc:'SKILL (Q / LT): heavy spinning banana, 16 damage.'},{key:'shield',name:'Peel Shield',cost:160,en:35,desc:'SKILL (Q / LT): 2.5 s of invulnerability.'},{key:'storm',name:'Dart Storm',cost:300,en:70,desc:'ULT (E / L3 / R3): fan of 9 darts, 10 damage each.'}];
-const CHARS=[{key:'kip',name:'Kip',cost:0,desc:'Balanced salvage-runner.'},{key:'bat',name:'Night Monkey',cost:400,desc:'Dark cowl and cape. Dash costs half energy.'},{key:'hood',name:'Archer Monkey',cost:400,desc:'Green hood. Bolts deal +4 damage.'}];
-// Harder default difficulty.
-DIFFICULTY.hard.damage=1.25;DIFFICULTY.hard.speed=1.12;DIFFICULTY.nightmare.damage=1.9;DIFFICULTY.nightmare.speed=1.3;
-// Controls: new actions on keyboard + standard controller.
-keymap.skill=['KeyQ'];keymap.ult=['KeyE'];
-const basePad=getPadState;getPadState=function(gp){const s=basePad(gp),b=i=>!!gp.buttons[i]?.pressed;s.skill=b(6);s.ult=b(10)||b(11);return s};
-// No zoom: block pinch, double-tap and page scrolling.
-document.body.style.touchAction='none';for(const ev of ['gesturestart','gesturechange','dblclick'])document.addEventListener(ev,e=>e.preventDefault(),{passive:false});
-document.addEventListener('touchmove',e=>{if(e.touches.length>1||game.state==='play')e.preventDefault()},{passive:false});
-// Styles for joystick, bigger buttons, new menu look.
-const css=document.createElement('style');css.textContent=`#touch{position:fixed;inset:auto 0 0 0;display:flex;justify-content:space-between;align-items:flex-end;padding:0 max(18px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));pointer-events:none;z-index:5}#touch[hidden]{display:none}#move,#combat{pointer-events:auto}
-#joy{width:150px;height:150px;border-radius:50%;background:radial-gradient(#ffffff22,#0a122688);border:3px solid #ffffff66;position:relative;touch-action:none;box-shadow:0 0 18px #5ef0ff55}#knob{position:absolute;left:45px;top:45px;width:60px;height:60px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#7cf2ff 40%,#1d6f9a);box-shadow:0 4px 10px #0008;pointer-events:none}
-#combat{display:grid;grid-template-columns:repeat(3,78px);gap:10px}#combat button{width:78px;height:78px;border-radius:50%;font-weight:900;font-size:13px;border:3px solid #ffffffaa;background:radial-gradient(circle at 35% 30%,#6fd7ff,#1b4f9a);box-shadow:0 5px 0 #0b1f45,0 0 14px #46c8ff66;color:#fff;touch-action:none}#combat button.pressed{transform:translateY(4px);box-shadow:0 1px 0 #0b1f45}#combat .attack{background:radial-gradient(circle at 35% 30%,#ff9fd0,#b0206a)}#combat [data-action=skill]{background:radial-gradient(circle at 35% 30%,#fff08a,#c98a00)}#combat [data-action=ult]{background:radial-gradient(circle at 35% 30%,#d6a0ff,#5a1fb0)}
-@media (max-height:430px){#joy{width:124px;height:124px}#knob{left:35px;top:35px;width:54px;height:54px}#combat{grid-template-columns:repeat(3,62px);gap:8px}#combat button{width:62px;height:62px;font-size:11px}}
-#panel{background:linear-gradient(160deg,#2b1b5ef2,#0e2c63f2 55%,#12355ff2);border:3px solid #ffd84d;border-radius:22px;box-shadow:0 0 0 4px #0008,0 18px 40px #000a}#panel h1{font-size:44px;letter-spacing:2px;color:#ffe34d;text-shadow:0 4px 0 #a8460e,0 0 18px #ff9a2e}#panel h2{color:#ffe34d;text-shadow:0 3px 0 #8a3a00}#panel button{border-radius:14px;font-weight:900;text-transform:uppercase;border:2px solid #ffffff88;background:linear-gradient(#3f8cff,#2050c8);box-shadow:0 4px 0 #0c2668}#panel button.primary{background:linear-gradient(#ffe14d,#ff9c1a);color:#2a1300;box-shadow:0 4px 0 #9a4b00}#panel button:disabled{opacity:.45}#panel .card{border-radius:14px;background:#ffffff12;border:2px solid #ffffff2a}`;document.head.appendChild(css);
-// Replace ◀ ▶ with a joystick; add SKILL and ULT buttons.
-$('move').innerHTML='<div id="joy" aria-label="Movement joystick"><div id="knob"></div></div>';
-$('combat').insertAdjacentHTML('afterbegin','<button data-action="skill">SKILL</button><button data-action="ult">ULT</button>');
-for(const button of $('combat').querySelectorAll('[data-action=skill],[data-action=ult]')){button.addEventListener('pointerdown',e=>{e.preventDefault();button.setPointerCapture(e.pointerId);touches.set(e.pointerId,button.dataset.action);button.classList.add('pressed');audio.start()});const end=e=>{touches.delete(e.pointerId);button.classList.remove('pressed')};button.addEventListener('pointerup',end);button.addEventListener('pointercancel',end);button.addEventListener('lostpointercapture',end)}
-(()=>{const joy=$('joy'),knob=$('knob');let id=null;const set=e=>{const r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.36;let dx=e.clientX-cx,dy=e.clientY-cy;const d=Math.hypot(dx,dy);if(d>max){dx=dx/d*max;dy=dy/d*max}knob.style.transform='translate('+dx+'px,'+dy+'px)';const a=dx<-max*.3?'left':dx>max*.3?'right':null;if(a)touches.set(id,a);else touches.delete(id)};
-joy.addEventListener('pointerdown',e=>{e.preventDefault();id=e.pointerId;joy.setPointerCapture(id);audio.start();set(e)});joy.addEventListener('pointermove',e=>{if(e.pointerId===id)set(e)});const end=e=>{if(e.pointerId!==id)return;touches.delete(id);id=null;knob.style.transform=''};joy.addEventListener('pointerup',end);joy.addEventListener('pointercancel',end);joy.addEventListener('lostpointercapture',end)})();
-const baseReset=resetInput;resetInput=function(){baseReset();const k=$('knob');if(k)k.style.transform=''};
-</script>
-<script>
-'use strict';
-// Skills, characters, animations.
-let skillCD=0,ultCD=0;
-const baseMakePlayer=makePlayer;makePlayer=function(x){const p=baseMakePlayer(x);p.shield=0;p.land=0;p.wasGround=true;return p};
-const baseFire=firePlayer;firePlayer=function(c){baseFire(c);if(extras.char==='hood'){const s=shots[shots.length-1];if(s&&s.friendly)s.damage+=4}};
-function useSkill(){const p=player,k=extras.skill;if(!extras.skills.includes(k)){notify('Buy a skill in the Banana Workshop');return}const sk=SKILLS.find(s=>s.key===k);if(skillCD>0||p.en<sk.en){audio.fx('warn');return}p.en-=sk.en;skillCD=1.2;if(k==='shield'){p.shield=2.5;p.inv=Math.max(p.inv,2.5);audio.fx('buy')}else{shots.push({x:p.x+(p.face>0?18:-14),y:p.y+6,w:14,h:14,vx:p.face*230,vy:0,life:1.6,friendly:true,damage:16+save.upgrades.bolt,tier:3,banana:true});audio.fx('shot')}}
-function useUlt(){const p=player;if(!extras.skills.includes('storm')){notify('Buy Dart Storm in the Banana Workshop');return}if(ultCD>0||p.en<70){audio.fx('warn');return}p.en-=70;ultCD=6;game.shake=6;for(let i=-4;i<=4;i++){const a=i*.13;shots.push({x:p.x+9,y:p.y+12,w:8,h:3,vx:Math.cos(a)*p.face*300,vy:Math.sin(a)*300,life:1.4,friendly:true,damage:10,tier:1})}audio.fx('win')}
-const baseUpdatePlayer=updatePlayer;updatePlayer=function(dt){const p=player,enBefore=p.en,dashBefore=p.dash;baseUpdatePlayer(dt);if(!player||player!==p||p.dead||game.state!=='play')return;if(extras.char==='bat'&&p.dash>dashBefore&&enBefore-p.en>=17)p.en=Math.min(p.maxEn,p.en+9);skillCD=Math.max(0,skillCD-dt);ultCD=Math.max(0,ultCD-dt);p.shield=Math.max(0,(p.shield||0)-dt);if(p.ground&&!p.wasGround){p.land=.12;burst(p.x+9,p.y+30,'#e8d9b0',5)}p.wasGround=p.ground;p.land=Math.max(0,(p.land||0)-dt);if(pressed('skill'))useSkill();if(pressed('ult'))useUlt()};
-const baseDraw=drawRunner;drawRunner=function(p,ghost){if(p.dead)return;
- if(p.dash>0)for(let i=1;i<=3;i++){ctx.save();ctx.globalAlpha=.35/i;baseDraw({...p,x:p.x-p.face*i*9,inv:0,attack:0},true);ctx.restore()}
- let sx=1,sy=1;if(p.dash>0){sx=1.25;sy=.82}else if(!p.ground){sy=p.vy<0?1.15:1.05;sx=p.vy<0?.88:.95}else if(p.land>0){sx=1.2;sy=.82}
- ctx.save();const fx=p.x+p.w/2,fy=p.y+p.h;ctx.translate(fx,fy);if(p.dash>0)ctx.rotate(p.face*.12);else if(!p.ground&&p.jumps>1)ctx.rotate(p.face*(tick*.25%(Math.PI*2)));ctx.scale(sx,sy);ctx.translate(-fx,-fy);baseDraw(p,ghost);
- if(!(!ghost&&p.inv>0&&Math.floor(tick/5)%2)){ctx.save();ctx.translate(Math.round(fx),Math.round(p.y));ctx.scale(p.face,1);
-  if(extras.char==='bat'){rect(-7,-1,14,5,'#1b1b24');rect(-7,-4,3,4,'#1b1b24');rect(4,-4,3,4,'#1b1b24');rect(-15,10,9,18+Math.sin(tick*.2)*2,'#20202c');rect(-7,12,14,4,'#3a3a4a');rect(-2,14,4,3,'#ffd23a')}
-  if(extras.char==='hood'){rect(-8,-3,16,6,'#2f8a3a');rect(-9,1,4,9,'#2f8a3a');rect(-10,-6,4,4,'#2f8a3a');rect(-7,12,14,4,'#3fae4a');rect(-12,8,3,16,'#8a5a2b');rect(-13,10,5,2,'#d8d8d8')}
-  ctx.restore()}
- ctx.restore();
- if(p.shield>0){ctx.strokeStyle=tick%10<5?'#fff27a':'#ffd23a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(fx,p.y+15,22,0,Math.PI*2);ctx.stroke()}};
-const baseHud=hud;hud=function(){baseHud();if(!player)return;label('Q '+(extras.skills.includes(extras.skill)?(skillCD>0?skillCD.toFixed(1):'READY'):'--'),W-8,58,'#ffe27e',7,'right');label('E '+(extras.skills.includes('storm')?(ultCD>0?ultCD.toFixed(1):'ULT READY'):'--'),W-8,68,'#d6a0ff',7,'right')};
-const baseShop=shop;shop=function(where,n){baseShop(where,n);const html='<h2>SKILLS</h2><div class="grid">'+SKILLS.map(s=>{const own=extras.skills.includes(s.key),eq=s.key!=='storm'&&extras.skill===s.key;return'<div class="card"><h3>'+s.name+'</h3><p class="muted">'+s.desc+'</p><button data-sk="'+s.key+'" '+(!own&&save.bananas<s.cost?'disabled':'')+'>'+(own?(s.key==='storm'?'OWNED':eq?'EQUIPPED':'EQUIP'):'BUY · '+s.cost+' BAN')+'</button></div>'}).join('')+'</div><h2>CHARACTERS</h2><div class="grid">'+CHARS.map(c=>{const own=c.key==='kip'||extras.chars.includes(c.key);return'<div class="card"><h3>'+c.name+'</h3><p class="muted">'+c.desc+'</p><button data-ch="'+c.key+'" '+(!own&&save.bananas<c.cost?'disabled':'')+'>'+(own?(extras.char===c.key?'SELECTED':'SELECT'):'BUY · '+c.cost+' BAN')+'</button></div>'}).join('')+'</div>';
- $('panel').querySelector('.actions').insertAdjacentHTML('beforebegin',html);
- document.querySelectorAll('[data-sk]').forEach(b=>b.onclick=()=>{const s=SKILLS.find(x=>x.key===b.dataset.sk);if(!extras.skills.includes(s.key)){if(save.bananas<s.cost){audio.fx('warn');return}save.bananas-=s.cost;extras.skills.push(s.key)}if(s.key!=='storm')extras.skill=s.key;flushSave();audio.fx('buy');shop(where,n)});
- document.querySelectorAll('[data-ch]').forEach(b=>b.onclick=()=>{const c=CHARS.find(x=>x.key===b.dataset.ch);if(c.key!=='kip'&&!extras.chars.includes(c.key)){if(save.bananas<c.cost){audio.fx('warn');return}save.bananas-=c.cost;extras.chars.push(c.key)}extras.char=c.key;flushSave();audio.fx('buy');shop(where,n)})};
 </script>
 </body>
 </html>
