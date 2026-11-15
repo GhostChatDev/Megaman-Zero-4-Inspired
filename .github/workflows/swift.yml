@@ -1,0 +1,129 @@
+name: Web game checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: web-game-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/game-check" playwright@1
+          "$RUNNER_TEMP/game-check/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test web game
+        env:
+          NODE_PATH: ${{ runner.temp }}/game-check/node_modules
+        run: |
+          mkdir -p test-results
+          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/game-server.log 2>&1 &
+          node <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+          assert(scripts.length > 0, 'Game script exists');
+          scripts.forEach((s, i) => new vm.Script(s[1], { filename: `game-${i}.js` }));
+          (async () => {
+            const browser = await chromium.launch();
+            const errors = [];
+            const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+            page.on('pageerror', error => errors.push(error.message));
+            try {
+              await page.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              await page.waitForSelector('#overlay button');
+              assert(await page.locator('canvas').isVisible(), 'Canvas visible');
+              await page.screenshot({ path: 'test-results/title.png' });
+              // Exercise the actual stage setup and simulation, not a separate model.
+              for (let n = 1; n <= 9; n++) {
+                const result = await page.evaluate(n => {
+                  launch(n);
+                  for (let i = 0; i < 240; i++) update(1 / 120);
+                  render();
+                  return {
+                    stage: game.stage, state: game.state,
+                    x: player.x, y: player.y, hp: player.hp,
+                    solids: level.solids.length,
+                    width: level.width, arena: level.arena
+                  };
+                }, n);
+                assert.equal(result.stage, n);
+                assert.equal(result.state, 'play');
+                assert(Number.isFinite(result.x) && Number.isFinite(result.y));
+                assert(result.hp > 0 && result.solids > 0);
+                assert(result.width > result.arena);
+              }
+              await page.evaluate(() => launch(1));
+              await page.keyboard.down('ArrowRight');
+              await page.waitForTimeout(350);
+              await page.keyboard.up('ArrowRight');
+              await page.keyboard.press('Space');
+              await page.keyboard.press('x');
+              await page.waitForTimeout(150);
+              await page.screenshot({ path: 'test-results/gameplay.png' });
+              const economy = await page.evaluate(() => {
+                save.bananas = 10000;
+                const before = save.bananas;
+                const key = upgrades[0].key;
+                const old = save.upgrades[key];
+                const bought = purchase(save, key);
+                persist(); flushSave();
+                return { bought, spent: save.bananas < before, upgraded: save.upgrades[key] === old + 1 };
+              });
+              assert(economy.bought && economy.spent && economy.upgraded, 'Upgrade changes balance and stats');
+              const balance = await page.evaluate(() => save.bananas);
+              await page.reload({ waitUntil: 'networkidle' });
+              assert.equal(await page.evaluate(() => save.bananas), balance, 'Save survives reload');
+              await page.evaluate(() => { launch(1); pauseMenu(); });
+              assert(await page.locator('#overlay').isVisible(), 'Pause screen visible');
+              await page.evaluate(() => resume());
+              assert(await page.locator('#overlay').isHidden(), 'Resume hides overlay');
+              // Browser-standard controller mapping; no physical controller is needed in CI.
+              const controllerWorked = await page.evaluate(() => {
+                const buttons = Array.from({ length: 17 }, () => ({ pressed: false, value: 0 }));
+                Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [{
+                  id: 'CI standard controller', index: 0, connected: true,
+                  mapping: 'standard', axes: [1, 0, 0, 0], buttons
+                }] });
+                pollInput();
+                const before = player.x;
+                for (let i = 0; i < 30; i++) { pollInput(); update(1 / 120); }
+                return player.x > before;
+              });
+              assert(controllerWorked, 'Standard controller moves protagonist');
+              const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+              const touch = await mobile.newPage();
+              touch.on('pageerror', error => errors.push(error.message));
+              await touch.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              await touch.evaluate(() => { settings.touch = 'on'; launch(1); updateControls(); });
+              assert(await touch.locator('#touch').isVisible(), 'Mobile controls visible');
+              const action = touch.locator('#touch button').first();
+              await action.tap();
+              await touch.screenshot({ path: 'test-results/mobile.png' });
+              await mobile.close();
+              assert.deepEqual(errors, [], 'No browser runtime errors');
+              console.log('PASS: syntax, boot, nine stages, keyboard, upgrades, save/reload, pause, controller and mobile smoke checks');
+            } finally {
+              fs.writeFileSync('test-results/browser-errors.json', JSON.stringify(errors, null, 2));
+              await browser.close();
+            }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
+      - name: Upload screenshots and browser errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: test-results/
