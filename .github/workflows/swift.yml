@@ -79,7 +79,7 @@ jobs:
                 const key = upgrades[0].key;
                 const old = save.upgrades[key];
                 const bought = purchase(save, key);
-                persist(); if (typeof flushSave === 'function') flushSave();
+                persist(); flushSave();
                 return { bought, spent: save.bananas < before, upgraded: save.upgrades[key] === old + 1 };
               });
               assert(economy.bought && economy.spent && economy.upgraded, 'Upgrade changes balance and stats');
@@ -109,8 +109,24 @@ jobs:
               await touch.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
               await touch.evaluate(() => { settings.touch = 'on'; launch(1); updateControls(); });
               assert(await touch.locator('#touch').isVisible(), 'Mobile controls visible');
-              const action = touch.locator('#touch button').first();
-              await action.tap();
+              for (const viewport of [{width:844,height:390},{width:390,height:844}]) {
+                await touch.setViewportSize(viewport);
+                const bounds=[];
+                for (const name of ['slash','jump','dash','shot']) {
+                  const action=touch.locator(`#combat [data-action="${name}"]`), b=await action.boundingBox();
+                  assert(b && b.width>=64 && b.height>=64, `${name}: size`);
+                  assert(b.x>=0 && b.y>=0 && b.x+b.width<=viewport.width && b.y+b.height<=viewport.height, `${name}: viewport`);
+                  for(const a of bounds) assert(b.x>=a.x+a.width || b.x+b.width<=a.x || b.y>=a.y+a.height || b.y+b.height<=a.y, `${name}: overlap`);
+                  bounds.push(b);
+                  await touch.mouse.move(b.x+b.width/2,b.y+b.height/2);
+                  await touch.mouse.down();
+                  assert(await touch.evaluate(n=>[...touches.values()].includes(n),name), `${name}: press`);
+                  assert(await action.evaluate(b=>b.classList.contains('pressed')), `${name}: feedback`);
+                  await touch.mouse.up();
+                  assert(await touch.evaluate(n=>![...touches.values()].includes(n),name), `${name}: release`);
+                  await action.tap();
+                }
+              }
               await touch.screenshot({ path: 'test-results/mobile.png' });
               await mobile.close();
               assert.deepEqual(errors, [], 'No browser runtime errors');
