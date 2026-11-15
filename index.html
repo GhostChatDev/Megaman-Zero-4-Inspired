@@ -1,10 +1,39 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#151629"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#151629"><meta name="apple-mobile-web-app-capable" content="yes">
 <title>Banana Signal · Dawn Caravan</title>
 <style>
 :root{color-scheme:dark;--cyan:#75ecff;--gold:#ffe06a;--panel:#192338;--edge:#59718b}*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}body{margin:0;background:#080c17;color:#e7f5fb;font:15px/1.5 ui-monospace,monospace;overflow:hidden}button,input,select{font:inherit}button{color:inherit;border:2px solid var(--edge);background:linear-gradient(#30455e,#172536);border-radius:5px;padding:10px 14px;cursor:pointer;box-shadow:inset 0 1px #9ebad155,0 3px #080e1d}button:hover,button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}button:disabled{opacity:.45;cursor:default}button.primary{border-color:var(--cyan);color:var(--cyan)}button.gold{border-color:var(--gold);color:var(--gold)}h1{line-height:1.05;letter-spacing:.06em;color:var(--cyan);font-size:clamp(30px,7vw,64px);text-shadow:3px 3px #394a86;margin:10px 0}h2{color:var(--gold);margin:8px 0}h3{color:var(--cyan);margin:10px 0 4px}p{margin:9px 0}.muted{color:#a3b7ce;font-size:12px}.goldText{color:var(--gold)}#shell{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(ellipse,#22334c,#080c17 75%)}#view{position:relative;width:min(100vw,150vh);aspect-ratio:3/2;max-height:100%;overflow:hidden;background:#13172d;box-shadow:0 0 0 3px #405168,0 0 50px #000}canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}#top{position:absolute;right:1%;top:1%;display:flex;gap:5px}#top button{padding:4px 7px;font-size:11px;background:#15263ddd}#overlay{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));background:#070c18bd;backdrop-filter:blur(3px)}#overlay[hidden],#touch[hidden],#top[hidden]{display:none}#panel{width:min(760px,96vw);max-height:91dvh;overflow:auto;padding:clamp(16px,3vw,28px);border:3px solid #607897;background:linear-gradient(135deg,#25314bfa,#0d1829fa);box-shadow:inset 0 0 0 3px #0b1427,0 12px 50px #0009;border-radius:8px}#panel .actions{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0 4px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.card{padding:12px;background:#0c1628a8;border:1px solid #486078;border-radius:5px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #435370;padding:10px 0}.row label{flex:1}input[type=range]{width:125px;accent-color:var(--cyan)}select{max-width:185px;background:#111d30;color:#fff;padding:6px}#notice{position:fixed;left:50%;top:max(62px,env(safe-area-inset-top));transform:translateX(-50%);z-index:20;background:#102239ec;border:1px solid var(--gold);border-radius:4px;padding:8px 16px;max-width:90vw;text-align:center;pointer-events:none;font-size:13px;opacity:0;transition:opacity .15s}#touch{position:fixed;inset:0;pointer-events:none;z-index:5;touch-action:none;user-select:none;-webkit-user-select:none}#move,#combat{position:absolute;bottom:max(12px,env(safe-area-inset-bottom));display:flex;gap:8px;align-items:flex-end}#move{left:max(12px,env(safe-area-inset-left))}#combat{right:max(12px,env(safe-area-inset-right));display:grid;grid-template-columns:repeat(2,58px)}#touch button{pointer-events:auto;width:58px;height:54px;padding:0;background:#192c49aa;border:2px solid #8ec4d8aa;color:#e7fbff;font-size:11px;touch-action:none}#touch button.pressed{background:#45809baa;border-color:#fff}#touch .attack{border-color:#f5ca76}#controller{font-size:11px;color:#a4bed6}.key{color:var(--cyan)}@media(max-width:700px) and (orientation:portrait){#view{width:100vw;align-self:start;margin-top:env(safe-area-inset-top)}#touch button{width:62px;height:62px}#combat{grid-template-columns:repeat(2,62px)}#move,#combat{bottom:max(26px,env(safe-area-inset-bottom))}#panel{max-height:86dvh}#top{top:3px}}@media(max-height:420px){#touch button{height:43px;width:49px}#combat{grid-template-columns:repeat(2,49px)}#move,#combat{bottom:5px}#panel{padding:12px}h1{font-size:30px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto;transition:none!important}}
+</style>
+<style>
+/* v3 look: bold cartoon menus, big joystick + arcade buttons, no zoom */
+html,body{touch-action:none;-ms-touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-text-size-adjust:100%}
+body{font-family:"Trebuchet MS",system-ui,sans-serif}
+h1{font-family:"Arial Black",Impact,system-ui,sans-serif;font-style:italic;color:#fff;-webkit-text-stroke:2px #2a1650;text-shadow:0 5px 0 #6a2cd8,0 9px 18px #000a;letter-spacing:.02em}
+h2,h3{font-family:"Arial Black",Impact,system-ui,sans-serif;font-style:italic;text-transform:uppercase}
+h2{color:#ffe14d;text-shadow:0 3px 0 #b0420f}h3{color:#6ff2ff}
+#overlay{background:radial-gradient(circle at 50% 20%,#5b2bd5cc,#1a0d3ae6 60%,#05030fe6);backdrop-filter:blur(6px)}
+#panel{border:none;border-radius:18px;background:linear-gradient(160deg,#3b2a8cf5,#1b1446f5 55%,#120c30f5);box-shadow:0 0 0 4px #ffffff22,0 0 0 8px #7d4dff55,0 20px 60px #000b}
+#panel button{font-family:"Arial Black",Impact,system-ui,sans-serif;font-style:italic;text-transform:uppercase;letter-spacing:.03em;border:none;border-radius:10px;padding:12px 18px;color:#fff;background:linear-gradient(#5b8cff,#3048d8);box-shadow:0 5px 0 #1b2582,0 8px 14px #0007;transform:skew(-6deg)}
+#panel button.primary{background:linear-gradient(#ffe95a,#ffb31f);color:#3a1f00;box-shadow:0 5px 0 #b0600a,0 8px 14px #0007}
+#panel button.gold{background:linear-gradient(#c66bff,#8a2be2);box-shadow:0 5px 0 #4b137f,0 8px 14px #0007}
+#panel button:active{transform:skew(-6deg) translateY(3px);box-shadow:0 2px 0 #0008}
+#panel button:disabled{filter:grayscale(.8)}
+.card{background:#ffffff10;border:2px solid #ffffff22;border-radius:12px}
+.owned{color:#7dffb0}
+#touch{pointer-events:none}
+#stick{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:max(18px,env(safe-area-inset-bottom));width:150px;height:150px;border-radius:50%;pointer-events:auto;touch-action:none;background:radial-gradient(circle,#ffffff18 40%,#ffffff30 41%,#ffffff10 70%);border:3px solid #ffffff55;box-shadow:0 0 22px #6ff2ff44 inset}
+#knob{position:absolute;left:50%;top:50%;width:66px;height:66px;margin:-33px 0 0 -33px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffffff,#8fe9ff 35%,#2f7fd8);box-shadow:0 6px 0 #164a8a,0 8px 16px #0008;pointer-events:none}
+#combat{position:absolute;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));display:grid!important;grid-template-columns:repeat(3,74px);grid-template-rows:repeat(2,74px);gap:10px}
+#touch #combat button{width:74px;height:74px;border-radius:50%;border:3px solid #ffffffaa;font:900 11px "Arial Black",system-ui,sans-serif;color:#fff;text-shadow:0 1px 2px #000;box-shadow:0 6px 0 #0009,inset 0 3px 0 #ffffff66;background:radial-gradient(circle at 35% 30%,#7fb2ff,#2a4fd0)}
+#touch #combat .attack{background:radial-gradient(circle at 35% 30%,#ff8a8a,#d0232a)}
+#touch #combat [data-action=jump]{background:radial-gradient(circle at 35% 30%,#8affb0,#1d9a4a)}
+#touch #combat [data-action=skill]{background:radial-gradient(circle at 35% 30%,#ffe66a,#d68a00);color:#3a1f00;text-shadow:none}
+#touch #combat [data-action=ult]{background:radial-gradient(circle at 35% 30%,#e29bff,#7a1fd0)}
+#touch #combat button.pressed{transform:translateY(4px) scale(.95);box-shadow:0 2px 0 #0009;filter:brightness(1.3)}
+@media(max-height:420px){#stick{width:124px;height:124px;bottom:8px}#knob{width:54px;height:54px;margin:-27px 0 0 -27px}#combat{grid-template-columns:repeat(3,60px);grid-template-rows:repeat(2,60px);gap:7px;bottom:8px}#touch #combat button{width:60px;height:60px;font-size:9px}}
+@media(max-width:700px) and (orientation:portrait){#stick{bottom:max(40px,env(safe-area-inset-bottom))}#combat{bottom:max(40px,env(safe-area-inset-bottom))}}
 </style>
 </head>
 <body>
@@ -24,7 +53,7 @@ let save=cleanSave(readJSON(SEED,null));const pref=readJSON(SETTINGS,{}),setting
 const DIFFICULTY={story:{hp:1.5,damage:.6,speed:.85,retries:5,label:'STORY'},hard:{hp:1,damage:1,speed:1,retries:2,label:'HARD'},nightmare:{hp:.8,damage:1.6,speed:1.18,retries:0,label:'NIGHTMARE'}};const diff=()=>DIFFICULTY[game.difficulty||settings.difficulty];
 const upgrades=[{key:'blade',name:'Prism Saber',base:30,desc:'+2 slash damage per level; longer reach.'},{key:'bolt',name:'Pulse Blaster',base:25,desc:'+2 bolt damage per level, including charge shots.'},{key:'armor',name:'Gorilla Guard',base:30,desc:'+6 maximum HP per level. Purchase repairs armor.'},{key:'energy',name:'Ion Capacitor',base:25,desc:'+15 energy and faster charging per level.'},{key:'magnet',name:'Banana Magnet',base:15,desc:'+22 pixel banana pickup range per level.'}];
 function upgradeCost(item,level){return Math.round(item.base*Math.pow(1.65,level))}function purchase(data,key){const item=upgrades.find(u=>u.key===key);if(!item)return false;const level=data.upgrades[key],cost=upgradeCost(item,level);if(level>=5||data.bananas<cost)return false;data.bananas-=cost;data.upgrades[key]++;return true}
-function persist(){writeJSON(SEED,save)}function flushSave(){return persist()}let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
+function persist(){writeJSON(SEED,save)}let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
 const stages=[
 {name:'PRISM HOLLOW',boss:'CARAPACE-IX',kind:'beetle',color:'#a776ff',sky:'#1b1b40',pattern:'fan',text:'The caravan seed-vault is failing. Kip must reopen eight climate relays before the last living orchard freezes. A beetle siege engine nests in the crystal mine.'},
 {name:'SCRAP CANOPY',boss:'IRON KONG',kind:'gorilla',color:'#77c7a3',sky:'#0c2830',pattern:'slam',text:'Steel vines feed an abandoned salvage garden. Iron Kong hoards its soil filters. Mechanic Nori needs those filters, not another trophy.'},
@@ -98,19 +127,12 @@ function drawRunner(p,ghost=false){
  if(p.dead)return;if(!ghost&&p.inv>0&&Math.floor(tick/5)%2)return;
  const run=Math.abs(p.vx)>12&&p.ground,step=run?Math.sin(tick*.45)*3:0;
  ctx.save();ctx.translate(Math.round(p.x+p.w/2),Math.round(p.y));ctx.scale(p.face,1);
- // MONKEY HERO: brown fur, tan face, red armor + helmet, green gem, white boots, curled tail, yellow ribbon, green saber.
- const F='#8a5a2b',FD='#5a3818',T='#f0c58e',R='#e0343c',RD='#8e1d28',WB='#f4f4f4',G='#4dff88',sw=Math.sin(tick*.12)*2,arm=p.attack>0?5:0,lean=p.dash>0?2:0;
- if(lean)ctx.transform(1,0,-.18,1,0,0);
- rect(-11,17,4,3,F);rect(-15,12,4,7,F);rect(-15,8,6,4,F);rect(-11,9,2,3,FD);
- rect(-15,4+sw,10,3,'#ffd84a');rect(-21,6+sw,7,2,'#fff09a');
- if(!arm){rect(-9,4,3,17,'#2d6b3f');rect(-10,19,5,3,'#666')}
- rect(-6,22+step,5,6-step,RD);rect(2,22-step,5,6+step,R);rect(-8,27,8,4,WB);rect(2,27,9,4,WB);rect(-8,30,8,1,'#9aa');rect(2,30,9,1,'#9aa');
- rect(-7,12,14,10,RD);rect(-6,12,12,8,R);rect(-3,14,6,5,T);rect(-7,20,14,2,'#2a1a2e');rect(-1,20,3,2,'#ffd84a');
- rect(-10,3,4,5,F);rect(-9,4,2,3,T);rect(6,3,4,5,F);rect(7,4,2,3,T);
- rect(-6,0,13,12,F);rect(-2,4,9,8,T);rect(1,5,2,3,'#111');rect(5,5,2,3,'#111');rect(1,5,1,1,'#fff');rect(5,5,1,1,'#fff');rect(3,9,4,1,FD);
- rect(-7,-3,15,4,R);rect(-5,-5,11,2,R);rect(-6,-3,13,1,'#ff8a8f');rect(0,-4,3,3,G);rect(1,-4,1,1,'#eaffef');rect(7,0,2,3,RD);
- rect(4,13,4,6,R);rect(6,18-arm,5,4,T);rect(9,17-arm,3,5,'#555');
- if(arm){rect(10,2-arm,3,16,G);rect(11,2-arm,1,16,'#eaffef')}
+ rect(-10,23,7,4,'#1a1933');rect(-13,18,5,7,'#9b6856');rect(-15,13,4,7,'#b98163');rect(-13,11,5,3,'#cf9976');
+ rect(-6,22+step,5,8-step,'#47788b');rect(2,22-step,5,8+step,'#3ad4c7');rect(-8,28,8,3,'#d2e7de');rect(2,28,9,3,'#e2fff0');
+ rect(-7,12,14,12,'#185565');rect(-7,12,14,4,'#55e2cf');rect(-5,16,9,6,'#2e9eaa');rect(-2,17,3,3,'#ffe18b');
+ rect(-9,1,4,8,'#ae725c');rect(6,2,4,7,'#ae725c');rect(-6,0,13,13,'#a36755');rect(-7,0,14,4,'#66eed7');rect(-5,-2,10,3,'#b3fff0');rect(-4,6,11,7,'#e6af7d');rect(0,5,7,4,'#192743');rect(3,5,4,2,'#b9fdff');
+ const arm=p.attack>0?5:0;rect(5,13,5,8,'#58d5c7');rect(7,18-arm,6,4,'#e6af7d');rect(10,17-arm,3,6,'#6a5fa1');
+ rect(-7,9,5,3,'#ff797a');rect(-16,10+Math.sin(tick*.12)*2,10,3,'#ce4b6a');rect(-21,12+Math.sin(tick*.12)*2,7,2,'#ff9a8c');
  if(p.charge>.1){rect(12,17,5,4,p.charge>.9?'#fff5a7':'#83cfff');if(tick%12<6)rect(11,15,7,8,'#c7fdff')}
  ctx.restore();
  if(p.attack>0){const b=slashBox(),phase=1-p.attack/(p.combo===3?.27:.19);ctx.save();ctx.translate(p.x+9,p.y+16);ctx.scale(p.face,1);ctx.strokeStyle=p.combo===3?'#fff2b0':'#c4ffed';ctx.lineWidth=p.combo===3?5:3;ctx.beginPath();ctx.arc(0,0,b.w,-1.3+phase*.6,1.2+phase*.6);ctx.stroke();ctx.strokeStyle='#52e1d8';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,b.w-6,-1.1,1.2);ctx.stroke();ctx.restore()}
@@ -126,37 +148,11 @@ function robot(e,boss=false){
  ctx.restore();if(!boss&&e.hp<e.maxHp)bar(e.x,e.y-5,e.w,2,e.hp,e.maxHp,'#ffb18b');
 }
 function background(){
- // THEMED BACKGROUNDS: one scene per stage.
- const n=clamp(game.stage||1,1,9),s=stages[n-1],cam=level?game.cam:tick*.15,wrap=(v,m)=>((v%m)+m)%m;
- const TH=[null,
-  {top:'#2a1450',bot:'#5b2d8f',far:'#3c2170',near:'#7a4fd0',glow:'#d9b6ff'},
-  {top:'#0d3b2a',bot:'#2f7a3c',far:'#1d5a32',near:'#3f9a4a',glow:'#9fffb0'},
-  {top:'#0b3a66',bot:'#1f78b4',far:'#14507f',near:'#2a8fc9',glow:'#bff4ff'},
-  {top:'#3a0f0f',bot:'#a8361a',far:'#5a1c14',near:'#8a2a14',glow:'#ffb347'},
-  {top:'#5aa8e8',bot:'#cfeaff',far:'#9cc8ee',near:'#7fa9c9',glow:'#ffffff'},
-  {top:'#0c0620',bot:'#2b0f4a',far:'#1a0f36',near:'#2c1a52',glow:'#ff4fd8'},
-  {top:'#1a1f2e',bot:'#3b4458',far:'#262d3d',near:'#38425a',glow:'#fff27a'},
-  {top:'#050a1e',bot:'#1a2350',far:'#121a3a',near:'#24306a',glow:'#bcd7ff'},
-  {top:'#ff8a5c',bot:'#ffd38a',far:'#d86a5a',near:'#a84a5a',glow:'#fff3c0'}][n];
- const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,TH.top);g.addColorStop(1,TH.bot);ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
- if(n===6||n===8||n===1){for(let i=0;i<40;i++){const x=wrap(i*83-cam*.05,520)-20;rect(x,(i*47)%150,1+(i%2),1+(i%2),i%5?TH.glow:'#ffffff')}}
- if(n===5||n===3){for(let i=0;i<6;i++){const x=wrap(i*130-cam*.08,620)-80;rect(x,30+(i%3)*28,60,10,'#ffffffcc');rect(x+12,22+(i%3)*28,34,10,'#ffffffcc')}}
- if(n===9){ctx.fillStyle='#fff6c8';ctx.beginPath();ctx.arc(360,170,46,0,Math.PI*2);ctx.fill()}
- if(n===4){ctx.fillStyle='#ffb34755';ctx.beginPath();ctx.arc(120,70,36,0,Math.PI*2);ctx.fill()}
- for(let i=-1;i<9;i++){const x=i*90-wrap(cam*.2,90),h=60+((i*37+n*11)%3)*30;
-  if(n===1){ctx.fillStyle=TH.far;ctx.beginPath();ctx.moveTo(x,280);ctx.lineTo(x+30,280-h-40);ctx.lineTo(x+60,280);ctx.fill();rect(x+28,240-h,4,h-10,TH.glow+'55')}
-  else if(n===2){rect(x+30,120,8,170,'#3b2a16');ctx.fillStyle=TH.far;ctx.beginPath();ctx.arc(x+34,120,38,0,Math.PI*2);ctx.fill()}
-  else if(n===3){rect(x,230-((i%2)*14),90,8,'#5fc3ff55')}
-  else if(n===4){rect(x+10,280-h-60,26,h+60,TH.far);rect(x+14,270-h-60,18,10,'#3a1612');if(tick%40<20)rect(x+16,262-h-60,4,8,'#ffb34788')}
-  else if(n===5){rect(x+20,180,4,100,'#7f9fbf');rect(x-20,180,90,3,'#c0d6ea')}
-  else if(n===6){rect(x,280-h-80,66,h+80,TH.far);for(let j=0;j<5;j++)rect(x+8+(j%3)*18,200-h+j*14,6,4,j%2?TH.glow:'#56f7ff')}
-  else if(n===7){rect(x+10,280-h-90,30,h+90,TH.far);rect(x+22,180-h,6,6,TH.glow)}
-  else if(n===8){ctx.fillStyle=TH.far;ctx.beginPath();ctx.arc(x+45,280,50,Math.PI,0);ctx.fill();rect(x+42,220,6,12,TH.glow+'88')}
-  else{rect(x+30,280-h,20,h,TH.far);rect(x+36,276-h,8,4,TH.glow)}}
- for(let i=-1;i<8;i++){const x=i*110-wrap(cam*.5,110);rect(x,230,70,50,TH.near);rect(x+6,236,58,3,TH.glow+'66')}
- if(n===2||n===3){rect(0,255,W,13,n===2?'#3aa0b0aa':'#1f8fd6cc');for(let i=0;i<12;i++)rect(wrap(i*47-tick*.6,W),258,12,1,'#e8ffff')}
- if(n===4){rect(0,262,W,6,'#ff6a1aaa')}
- if(n===7){for(let i=0;i<30;i++)rect(wrap(i*31-tick*1.5,W),wrap(i*53+tick*4,H),1,6,'#c8d4ff88');if(tick%300<4)rect(0,0,W,H,'#ffffff44')}
+ const s=stages[(game.stage||1)-1],cam=level?game.cam:tick*.15;rect(0,0,W,H,s.sky);
+ for(let i=0;i<32;i++){const x=((i*83-cam*.12)%520+520)%520;rect(x,(i*47)%157,1+(i%2),1,'#91b2d0')}
+ rect(355-cam*.025%500,28,38,38,'#667b9566');rect(362-cam*.025%500,32,22,28,'#a2bfd644');
+ for(let i=-1;i<9;i++){const x=i*90-(cam*.22%90);rect(x,100+(i%3)*19,66,180,'#15273d');rect(x+4,103+(i%3)*19,57,4,'#34465d');for(let j=0;j<4;j++)rect(x+10+j*12,135+(i%3)*19,3,5,'#597c8855')}
+ for(let i=-1;i<8;i++){const x=i*110-(cam*.5%110);rect(x,202,65,80,'#21374a');rect(x+5,208,55,4,'#3a5367');rect(x+11,225,20,23,'#0d2037');rect(x+34,222,5,4,s.color)}
  rect(0,268,W,52,'#0a172b');
 }
 function drawLevel(){
