@@ -44,7 +44,8 @@ jobs:
             try {
               await page.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
               await page.waitForSelector('#overlay button');
-              assert(await page.locator('canvas').isVisible(), 'Canvas visible');
+              assert(await page.locator('canvas#game').isVisible(), 'Game canvas visible');
+              assert(await page.locator('#panel canvas[data-portrait]').isVisible(), 'Title shows the hero portrait');
               await page.screenshot({ path: 'test-results/title.png' });
               // Exercise the actual stage setup and simulation, not a separate model.
               for (let n = 1; n <= 9; n++) {
@@ -222,6 +223,29 @@ jobs:
               assert.equal(r.skies, 9, 'Nine distinct stage backdrops');
               console.log('Average update+render time per frame: ' + r.frame.toFixed(2) + ' ms');
               assert(r.frame < 33, 'Frame cost stays within a 30 fps budget even on the software-rendered CI browser');
+              // Menus are usable from keyboard and controller, not only by pointer.
+              await page.evaluate(() => menu());
+              const focused = () => page.evaluate(() => document.activeElement.textContent);
+              assert((await focused()).includes('RELAY'), 'Title focuses the primary play button');
+              await page.keyboard.press('ArrowDown');
+              assert.equal(await focused(), 'STAGE SELECT', 'Arrow keys move menu focus');
+              await page.keyboard.press('Enter');
+              assert.equal(await page.locator('#panel h2').textContent(), 'DAWN ROUTE', 'Enter activates the focused button');
+              await page.keyboard.press('Escape');
+              assert(await page.locator('#panel h1').isVisible(), 'Escape goes back to the title');
+              await page.evaluate(() => shop('menu'));
+              await setPad([5]);
+              await page.evaluate(() => pollInput());
+              assert.equal(await page.locator('#panel .tabs .on').textContent(), 'SKILLS', 'RB switches workshop tab');
+              await setPad([13]);
+              const before = await focused();
+              await page.evaluate(() => pollInput());
+              assert.notEqual(await focused(), before, 'D-pad moves menu focus');
+              await setPad([1]);
+              await page.evaluate(() => pollInput());
+              assert(await page.locator('#panel h1').isVisible(), 'Controller B goes back');
+              await setPad([]);
+              await page.evaluate(() => pollInput());
               // A save written before skills/heroes existed must load intact with defaults filled in.
               await page.evaluate(() => {
                 menu();
