@@ -240,6 +240,33 @@ jobs:
                 input = {}; previous = {}; menu(); return out;
               });
               for (const [name, ok] of Object.entries(r)) assert(ok, 'Physical animation: ' + name);
+              // Audio: locked until a gesture, then music is sequenced; volume controls drive the gain nodes.
+              const quiet = await browser.newPage();
+              await quiet.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              assert.equal(await quiet.evaluate(() => audio.ctx), null, 'No audio context before the first user gesture');
+              await quiet.keyboard.press('ArrowDown');
+              await quiet.waitForTimeout(500);
+              assert(await quiet.evaluate(() => audio.ctx && audio.ctx.state === 'running' && audio.played > 0), 'Audio unlocks on first gesture and menu music plays');
+              await quiet.close();
+              await page.evaluate(() => { menu(); settings.music = .5; settings.sfx = .7; settings.volume = .7; audio.start(); audio.apply(); });
+              await page.waitForTimeout(400);
+              r = await page.evaluate(async () => {
+                const wait = ms => new Promise(done => setTimeout(done, ms)), out = {};
+                const a = audio.played; await wait(500); out.musicPlays = audio.played > a;
+                const b = audio.played; audio.fx('slash'); out.sfxPlays = audio.played > b;
+                settingsMenu('menu');
+                const slide = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+                slide('volume', 30); out.master = Math.abs(audio.master.gain.value - .3) < .001;
+                slide('music', 0); out.musicGain = audio.music.gain.value === 0;
+                await wait(300); const c = audio.played; await wait(500); out.musicSilent = audio.played === c;
+                slide('sfx', 0); const d = audio.played; audio.fx('jump'); out.sfxSilent = audio.played === d;
+                slide('music', 50); slide('sfx', 70); slide('volume', 70);
+                const songs = new Set(); for (let n = 1; n <= 9; n++) { audio.compose('t', n, false, false); songs.add(audio.song.root + ':' + audio.song.lead.join()); }
+                out.songs = songs.size === 9;
+                audio.compose('t', 1, false, false); const stage = audio.song.rate; audio.compose('t', 1, true, false); out.bossFaster = audio.song.rate < stage;
+                audio.songKey = ''; menu(); return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Audio: ' + name);
               // Menus are usable from keyboard and controller, not only by pointer.
               await page.evaluate(() => menu());
               const focused = () => page.evaluate(() => document.activeElement.textContent);
