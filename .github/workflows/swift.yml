@@ -267,6 +267,63 @@ jobs:
                 audio.songKey = ''; menu(); return out;
               });
               for (const [name, ok] of Object.entries(r)) assert(ok, 'Audio: ' + name);
+              // Challenge and fairness: varied attacks, always telegraphed, never from off screen.
+              for (const difficulty of ['hard', 'nightmare']) {
+                r = await page.evaluate(difficulty => {
+                  settings.difficulty = difficulty; save.hero = 'kip';
+                  const out = { bossMoves: [], minBossTell: 9, minEnemyTell: 9, offscreen: 0, untold: 0, enemyActs: new Set(), bad: 0 };
+                  const idle = () => { previous = {}; input = {}; };
+                  for (let n = 1; n <= 9; n++) {
+                    // Guardian: stand in the arena, untouchable, and watch a full rotation of moves.
+                    launch(n); enemies.length = 0; player.x = level.arena + 60; update(1 / 120);
+                    const seen = new Set(); let tell = 0, last = '';
+                    for (let i = 0; i < 120 * 45 && game.boss; i++) {
+                      idle(); player.inv = 1; player.hp = player.maxHp; update(1 / 120); const b = game.boss; if (!b) break;
+                      if (b.state === 'tell') { tell += 1 / 120; if (!b.warning) out.bad++; }
+                      if (b.state === 'attack' && last === 'tell') { out.minBossTell = Math.min(out.minBossTell, tell); seen.add(b.action); }
+                      if (b.state !== 'tell') tell = 0; last = b.state;
+                      if (i === 600) b.hp = b.maxHp * .45; if (i === 2400) b.hp = b.maxHp * .2;
+                      if (shots.some(q => !Number.isFinite(q.x + q.y))) out.bad++;
+                    }
+                    out.bossMoves.push(BOSS_MOVES[n - 1].every(m => seen.has(m)) ? new Set(BOSS_MOVES[n - 1]).size : 0);
+                    // Robots: walk the stage untouchable; every attack needs a wind-up and an on-screen attacker.
+                    launch(n); const state = new Map(), told = new Map();
+                    for (let i = 0; i < 120 * 40; i++) {
+                      previous = { ...input }; input = { right: true, jump: i % 90 < 45 }; player.inv = 1; player.hp = player.maxHp; if (game.boss) break;
+                      const before = shots.length; update(1 / 120);
+                      for (const e of enemies) { if (e.dead) continue; const was = state.get(e);
+                        if (e.state === 'tell') told.set(e, (told.get(e) || 0) + 1 / 120);
+                        const fired = e.state === 'idle' && was === 'tell' && e.cool > 1; // instant attacks (wasp shot) finish within one update
+                        if ((e.state === 'act' && was !== 'act') || fired) { out.enemyActs.add(e.type + ':' + e.act); if (was !== 'tell') out.untold++; else out.minEnemyTell = Math.min(out.minEnemyTell, told.get(e)); told.set(e, 0); if (!onScreen(e)) out.offscreen++; }
+                        state.set(e, e.state); }
+                      for (const q of shots.slice(before)) if (!q.friendly && (q.x < game.cam - 40 || q.x > game.cam + W + 40)) out.offscreen++;
+                    }
+                  }
+                  out.enemyActs = [...out.enemyActs].sort(); idle(); return out;
+                }, difficulty);
+                assert(r.bossMoves.every(count => count >= 4), difficulty + ': every guardian uses at least four distinct moves: ' + r.bossMoves);
+                assert(r.minBossTell >= .49, difficulty + ': guardian wind-ups last at least half a second, got ' + r.minBossTell);
+                assert(r.minEnemyTell >= .39 && r.untold === 0, difficulty + ': every robot attack is telegraphed: ' + JSON.stringify(r));
+                assert.equal(r.offscreen, 0, difficulty + ': nothing attacks from off screen');
+                assert.equal(r.bad, 0, difficulty + ': warnings always labelled, projectiles always valid');
+                for (const act of ['beetle:charge', 'gorilla:leap', 'shield:bash', 'turret:burst', 'wasp:dive', 'wasp:shoot']) assert(r.enemyActs.includes(act), difficulty + ': robots use ' + act + ' (saw ' + r.enemyActs + ')');
+              }
+              r = await page.evaluate(() => {
+                settings.difficulty = 'hard'; const out = {}, idle = () => { previous = {}; input = {}; };
+                launch(3); enemies.length = 0; for (let i = 0; i < 30; i++) { idle(); update(1 / 120); }
+                const hp = player.hp; player.y = H + 80; idle(); update(1 / 120);
+                out.pitRescue = !player.dead && player.hp < hp && player.y + player.h <= GROUND && player.inv > 1;
+                const laser = level.hazards.find(h => h.kind === 'laser'); out.laserExists = !!laser;
+                let off = 0, warned = true, was = false, warn = false; // was=false: ignore a gate that is already firing when sampling starts
+                for (let i = 0; i < 360; i++) { idle(); player.inv = 1; update(1 / 120); if (laser.off) off++; if (was && !laser.off && !warn) warned = false; was = laser.off; warn = laser.warn; }
+                out.laserWindow = off / 120 >= 1.5; out.laserWarned = warned;
+                enemies.length = 0; shots.length = 0; const e = makeEnemy('shield', player.x + 60, GROUND - 22, 3); e.cool = 99; enemies.push(e);
+                idle(); update(1 / 120); const before = e.hp; firePlayer(1); for (let i = 0; i < 60; i++) { idle(); player.inv = 1; update(1 / 120); }
+                out.shieldBlocks = e.hp === before; damageEnemy(e, 5); out.shieldHurtByBlade = e.hp < before;
+                idle(); menu(); return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Hazards: ' + name);
+              await page.evaluate(() => { settings.difficulty = 'hard'; });
               // Menus are usable from keyboard and controller, not only by pointer.
               await page.evaluate(() => menu());
               const focused = () => page.evaluate(() => document.activeElement.textContent);
@@ -391,7 +448,7 @@ jobs:
               await touch.screenshot({ path: 'test-results/mobile.png' });
               await mobile.close();
               assert.deepEqual(errors, [], 'No browser runtime errors');
-              console.log('PASS: syntax, boot, nine stages, keyboard, upgrades, save/reload, pause, controller and mobile smoke checks');
+              console.log('PASS: syntax, boot, nine stages, keyboard, upgrades, save/reload, pause, controller, skills, workshop, heroes, animation, audio, fairness, menus, joystick and touch layout checks');
             } finally {
               fs.writeFileSync('test-results/browser-errors.json', JSON.stringify(errors, null, 2));
               await browser.close();
