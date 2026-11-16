@@ -202,6 +202,26 @@ jobs:
                 for (let i = 0; i < 360; i++) { previous = {}; input = {}; update(1 / 120); }
                 return used && e.hp < 500 && player.hp > 0;
               }, key), key + ' ultimate damages enemies');
+              // Animation: idle, run, jump, fall and dash must each be a distinct drawn pose; every stage has its own backdrop.
+              r = await page.evaluate(() => {
+                const base = { x: 0, y: 0, w: 18, h: 30, vx: 0, vy: 0, face: 1, ground: true, inv: 0, attack: 0, charge: 0, spin: 0, rise: 0, shield: 0, dash: 0, look: 'kip' };
+                const poses = { idle: {}, run: { vx: 110 }, jump: { ground: false, vy: -200 }, fall: { ground: false, vy: 200 }, dash: { dash: .1, vx: 290 } };
+                const main = ctx, shots = new Set();
+                for (const pose of Object.values(poses)) {
+                  const c = document.createElement('canvas'); c.width = c.height = 96;
+                  ctx = c.getContext('2d'); ctx.translate(40, 40); drawRunner({ ...base, ...pose }, true); ctx = main;
+                  shots.add(c.toDataURL());
+                }
+                const skies = new Set();
+                for (let n = 1; n <= 9; n++) { launch(n); render(); skies.add(layers.mid.toDataURL().length + ':' + layers.sky.toDataURL().length); }
+                const t = performance.now(); for (let i = 0; i < 120; i++) { tick++; update(1 / 120); render(); }
+                menu();
+                return { poses: shots.size, skies: skies.size, frame: (performance.now() - t) / 120 };
+              });
+              assert.equal(r.poses, 5, 'Idle, run, jump, fall and dash are distinct poses');
+              assert.equal(r.skies, 9, 'Nine distinct stage backdrops');
+              console.log('Average update+render time per frame: ' + r.frame.toFixed(2) + ' ms');
+              assert(r.frame < 33, 'Frame cost stays within a 30 fps budget even on the software-rendered CI browser');
               // A save written before skills/heroes existed must load intact with defaults filled in.
               await page.evaluate(() => {
                 menu();
