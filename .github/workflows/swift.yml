@@ -109,6 +109,52 @@ jobs:
               await touch.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
               await touch.evaluate(() => { settings.touch = 'on'; launch(1); updateControls(); });
               assert(await touch.locator('#touch').isVisible(), 'Mobile controls visible');
+              // Joystick: real multi-touch through the browser's touch pipeline (CDP), not synthetic state.
+              const cdp = await mobile.newCDPSession(touch);
+              const fingers = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([id, x, y]) => ({ id, x, y })) });
+              const settle = () => touch.waitForTimeout(120);
+              assert.equal(await touch.locator('[data-action="left"],[data-action="right"]').count(), 0, 'Arrow buttons replaced by joystick');
+              const sb = await touch.locator('#stick').boundingBox();
+              assert(sb && sb.width >= 110, 'Joystick is thumb sized');
+              const sx = sb.x + sb.width / 2, sy = sb.y + sb.height / 2;
+              await fingers('touchStart', [[1, sx, sy]]);
+              await fingers('touchMove', [[1, sx + 4, sy]]);
+              await settle();
+              assert(await touch.evaluate(() => !input.left && !input.right), 'Joystick dead zone ignores tiny movement');
+              const x0 = await touch.evaluate(() => player.x);
+              await fingers('touchMove', [[1, sx + 70, sy]]);
+              await touch.waitForTimeout(350);
+              assert(await touch.evaluate(x => input.right && !input.left && player.x > x + 10, x0), 'Joystick right moves protagonist');
+              const jb = await touch.locator('#combat [data-action="jump"]').boundingBox();
+              await fingers('touchStart', [[1, sx + 70, sy], [2, jb.x + jb.width / 2, jb.y + jb.height / 2]]);
+              await settle();
+              assert(await touch.evaluate(() => input.right && input.jump), 'Move and action held simultaneously');
+              // For touchEnd, CDP takes the points being lifted: lift the joystick finger only.
+              await fingers('touchEnd', [[1, sx + 70, sy]]);
+              await settle();
+              assert(await touch.evaluate(() => stick.id === null && stick.x === 0 && !input.right && input.jump), 'Releasing joystick stops movement, action stays held');
+              await fingers('touchEnd', []);
+              await settle();
+              assert(await touch.evaluate(() => !input.jump && touches.size === 0), 'Action released');
+              await fingers('touchStart', [[1, sx, sy]]);
+              await fingers('touchMove', [[1, sx - 70, sy]]);
+              await settle();
+              assert(await touch.evaluate(() => input.left && !input.right), 'Joystick left');
+              await fingers('touchCancel', []);
+              await settle();
+              assert(await touch.evaluate(() => stick.x === 0 && !input.left), 'Cancelled touch clears movement');
+              for (const [name, interrupt] of [['pause', 'pauseMenu()'], ['blur', "dispatchEvent(new Event('blur'))"], ['backgrounding', "dispatchEvent(new Event('pagehide'))"]]) {
+                await touch.evaluate(() => { if (game.state !== 'play') resume(); });
+                await fingers('touchStart', [[1, sx, sy]]);
+                await fingers('touchMove', [[1, sx + 70, sy]]);
+                await settle();
+                assert(await touch.evaluate(() => input.right), name + ': joystick held before interruption');
+                await touch.evaluate(interrupt);
+                await settle();
+                assert(await touch.evaluate(() => stick.id === null && stick.x === 0 && !input.right), name + ' clears joystick movement');
+                await fingers('touchEnd', []);
+              }
+              await touch.evaluate(() => { if (game.state !== 'play') resume(); });
               for (const viewport of [{width:844,height:390},{width:390,height:844}]) {
                 await touch.setViewportSize(viewport);
                 const bounds=[];
