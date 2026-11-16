@@ -223,6 +223,23 @@ jobs:
               assert.equal(r.skies, 9, 'Nine distinct stage backdrops');
               console.log('Average update+render time per frame: ' + r.frame.toFixed(2) + ' ms');
               assert(r.frame < 33, 'Frame cost stays within a 30 fps budget even on the software-rendered CI browser');
+              // Physical motion: poses blend instead of snapping, robots break apart, a knocked-out hero ragdolls to rest.
+              r = await page.evaluate(() => {
+                save.hero = 'kip'; launch(1); enemies.length = 0; level.hazards.length = 0; player.x = 600;
+                const sim = (n, held = {}) => { for (let i = 0; i < n; i++) { tick++; previous = { ...input }; input = held; update(1 / 120); if (i % 2) render(); } };
+                sim(40); const idle = player.rig.slice();
+                sim(1, { jump: true }); render(); const first = player.rig.slice(); sim(30, { jump: true }); const later = player.rig.slice();
+                const moved = (a, b) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0);
+                const out = { blend: moved(idle, first) > 0 && moved(idle, first) < moved(idle, later), stretch: false };
+                sim(200); sim(1, { jump: true }); out.stretch = player.squash < 0; sim(200);
+                const e = makeEnemy('gorilla', player.x + 30, GROUND - 30, 1); enemies.push(e); damageEnemy(e, 999);
+                out.debris = effects.filter(f => f.part).length >= 4;
+                player.inv = 0; hurtPlayer(9999); const start = { ...player.rag }; sim(20);
+                out.thrown = player.dead && player.rag.rot !== start.rot && player.rag.y < start.y; sim(150);
+                out.rest = player.rag.rest && Math.abs(Math.cos(player.rag.rot)) < .1 && player.rag.y + player.h <= GROUND + 12;
+                input = {}; previous = {}; menu(); return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Physical animation: ' + name);
               // Menus are usable from keyboard and controller, not only by pointer.
               await page.evaluate(() => menu());
               const focused = () => page.evaluate(() => document.activeElement.textContent);
