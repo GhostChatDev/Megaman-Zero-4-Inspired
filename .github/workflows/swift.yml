@@ -155,12 +155,30 @@ jobs:
                 await fingers('touchEnd', []);
               }
               await touch.evaluate(() => { if (game.state !== 'play') resume(); });
-              for (const viewport of [{width:844,height:390},{width:390,height:844}]) {
+              // Holding the joystick while slashing and jumping must do all three at once.
+              const center = async name => { const b = await touch.locator(`#combat [data-action="${name}"]`).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+              const [slx, sly] = await center('slash'), [jx, jy] = await center('jump');
+              const xa = await touch.evaluate(() => player.x);
+              await fingers('touchStart', [[1, sx, sy]]);
+              await fingers('touchMove', [[1, sx + 70, sy]]);
+              await fingers('touchStart', [[1, sx + 70, sy], [2, slx, sly], [3, jx, jy]]);
+              await touch.waitForTimeout(160);
+              assert(await touch.evaluate(x => player.x > x && player.attack > 0 && !player.ground, xa), 'Move + slash + jump work together');
+              await fingers('touchEnd', []);
+              await settle();
+              assert(await touch.evaluate(() => {
+                const blocked = type => { const e = new Event(type, { bubbles: true, cancelable: true }); document.querySelector('#combat button').dispatchEvent(e); return e.defaultPrevented; };
+                return blocked('contextmenu') && blocked('dblclick') && blocked('touchmove') && getComputedStyle(document.querySelector('#combat button')).touchAction === 'none';
+              }), 'Browser gestures are blocked on the controls');
+              for (const viewport of [{width:844,height:390},{width:568,height:320},{width:390,height:844}]) {
                 await touch.setViewportSize(viewport);
-                const bounds=[];
+                const stickBox = await touch.locator('#stick').boundingBox();
+                assert(stickBox.x >= 0 && stickBox.y >= 0 && stickBox.x + stickBox.width <= viewport.width && stickBox.y + stickBox.height <= viewport.height, 'Joystick inside viewport');
+                const bounds=[stickBox];
                 for (const name of ['slash','jump','dash','shot']) {
                   const action=touch.locator(`#combat [data-action="${name}"]`), b=await action.boundingBox();
                   assert(b && b.width>=64 && b.height>=64, `${name}: size`);
+                  assert(await action.evaluate(e=>getComputedStyle(e).borderRadius==='50%'), `${name}: round`);
                   assert(b.x>=0 && b.y>=0 && b.x+b.width<=viewport.width && b.y+b.height<=viewport.height, `${name}: viewport`);
                   for(const a of bounds) assert(b.x>=a.x+a.width || b.x+b.width<=a.x || b.y>=a.y+a.height || b.y+b.height<=a.y, `${name}: overlap`);
                   bounds.push(b);
