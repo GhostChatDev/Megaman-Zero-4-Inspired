@@ -64,7 +64,10 @@ let save=cleanSave(readJSON(SEED,null));const pref=readJSON(SETTINGS,{}),setting
 const DIFFICULTY={story:{hp:1.5,damage:.6,speed:.85,retries:5,label:'STORY'},hard:{hp:1,damage:1,speed:1,retries:2,label:'HARD'},nightmare:{hp:.8,damage:1.6,speed:1.18,retries:0,label:'NIGHTMARE'}};const diff=()=>DIFFICULTY[game.difficulty||settings.difficulty];
 const upgrades=[{key:'blade',name:'Prism Saber',base:30,desc:'+2 slash damage per level; longer reach.'},{key:'bolt',name:'Pulse Blaster',base:25,desc:'+2 bolt damage per level, including charge shots.'},{key:'armor',name:'Gorilla Guard',base:30,desc:'+6 maximum HP per level. Purchase repairs armor.'},{key:'energy',name:'Ion Capacitor',base:25,desc:'+15 energy and faster charging per level.'},{key:'magnet',name:'Banana Magnet',base:15,desc:'+22 pixel banana pickup range per level.'}];
 function upgradeCost(item,level){return Math.round(item.base*Math.pow(1.65,level))}function purchase(data,key){const item=upgrades.find(u=>u.key===key);if(!item)return false;const level=data.upgrades[key],cost=upgradeCost(item,level);if(level>=5||data.bananas<cost)return false;data.bananas-=cost;data.upgrades[key]++;return true}
-function persist(){writeJSON(SEED,save)}let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
+function persist(){return writeJSON(SEED,save)}
+// Saves are written synchronously; flushSave is the explicit "make sure it is on disk now" entry point.
+function flushSave(){return persist()}
+let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
 const stages=[
 {name:'PRISM HOLLOW',boss:'CARAPACE-IX',kind:'beetle',color:'#a776ff',sky:'#1b1b40',pattern:'fan',text:'The caravan seed-vault is failing. Kip must reopen eight climate relays before the last living orchard freezes. A beetle siege engine nests in the crystal mine.'},
 {name:'SCRAP CANOPY',boss:'IRON KONG',kind:'gorilla',color:'#77c7a3',sky:'#0c2830',pattern:'slam',text:'Steel vines feed an abandoned salvage garden. Iron Kong hoards its soil filters. Mechanic Nori needs those filters, not another trophy.'},
