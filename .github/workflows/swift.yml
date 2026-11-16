@@ -103,6 +103,54 @@ jobs:
                 return player.x > before;
               });
               assert(controllerWorked, 'Standard controller moves protagonist');
+              // Active skills and ultimate: real keys, then each effect, cost and cooldown.
+              const tap = async key => { await page.keyboard.down(key); await page.waitForTimeout(90); await page.keyboard.up(key); await page.waitForTimeout(60); };
+              const setPad = held => page.evaluate(held => {
+                const buttons = Array.from({ length: 17 }, (_, i) => ({ pressed: held.includes(i), value: 0 }));
+                Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [{ id: 'CI standard controller', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons }] });
+              }, held);
+              const arena = () => page.evaluate(() => {
+                launch(1); enemies.length = 0; shots.length = 0;
+                const e = makeEnemy('turret', player.x + 26, GROUND - 22, 1); e.cool = 99; e.hp = e.maxHp = 500; enemies.push(e);
+                player.inv = 0; player.en = player.maxEn;
+              });
+              await setPad([]);
+              await page.evaluate(() => { save.skills = skills.map(k => k.key); save.skill = 'cyclone'; });
+              await arena();
+              await tap('q');
+              let r = await page.evaluate(() => ({ cd: player.skillCD, spent: player.maxEn - player.en, hurt: enemies[0].maxHp - enemies[0].hp, again: useSkill(), en: player.en }));
+              assert(r.cd > 0 && r.spent > 0 && r.hurt > 0, 'Q uses the equipped skill: cooldown, energy cost and damage');
+              assert.equal(r.again, false, 'Skill rejected during cooldown');
+              assert(await page.evaluate(() => { const en = player.en; player.skillCD = 0; player.en = 3; const used = useSkill(); player.en = en; return !used; }), 'Skill rejected without energy');
+              r = await page.evaluate(() => {
+                const out = {}, run = n => { for (let i = 0; i < n; i++) update(1 / 120); };
+                const ready = key => { save.skill = key; player.skillCD = 0; player.en = player.maxEn; player.inv = 0; };
+                ready('fang'); useSkill(); out.fang = player.vy < 0; const hp0 = enemies[0].hp; run(40); out.fangHit = enemies[0].hp < hp0;
+                ready('volley'); useSkill(); out.volley = shots.filter(b => b.friendly && b.pierce).length === 5;
+                ready('barrier'); useSkill(); const hp = player.hp; hurtPlayer(10); out.barrier = player.hp === hp && player.shield === 1;
+                player.shield = 0; ready('patch'); player.hp = 5; useSkill(); out.patch = player.hp > 5;
+                ready('cyclone'); game.ult = 50; out.ultEarly = useUlt() === false && game.ult === 50;
+                return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Skill effect: ' + name);
+              await arena();
+              await page.evaluate(() => { game.ult = 100; });
+              await tap('e');
+              r = await page.evaluate(() => ({ ult: game.ult, hurt: enemies[0].maxHp - enemies[0].hp }));
+              assert(r.ult < 100 && r.hurt >= 30, 'E spends the full gauge on the ultimate');
+              // Controller: LB = skill, RB = ultimate; neither opens the shop or dashes any more.
+              await arena();
+              await page.evaluate(() => { pollInput(); update(1 / 120); game.ult = 100; });
+              await setPad([4]);
+              r = await page.evaluate(() => { pollInput(); update(1 / 120); return { cd: player.skillCD, state: game.state }; });
+              assert(r.cd > 0 && r.state === 'play', 'LB uses skill and no longer opens the shop');
+              await setPad([5]);
+              r = await page.evaluate(() => { pollInput(); update(1 / 120); return { ult: game.ult, dash: player.dash }; });
+              assert(r.ult < 100 && r.dash <= 0, 'RB fires the ultimate and no longer dashes');
+              await setPad([8]);
+              assert.equal(await page.evaluate(() => { pollInput(); update(1 / 120); return game.state; }), 'shop', 'View button opens the workshop');
+              await setPad([]);
+              await page.evaluate(() => { pollInput(); menu(); });
               const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
               const touch = await mobile.newPage();
               touch.on('pageerror', error => errors.push(error.message));
@@ -175,7 +223,7 @@ jobs:
                 const stickBox = await touch.locator('#stick').boundingBox();
                 assert(stickBox.x >= 0 && stickBox.y >= 0 && stickBox.x + stickBox.width <= viewport.width && stickBox.y + stickBox.height <= viewport.height, 'Joystick inside viewport');
                 const bounds=[stickBox];
-                for (const name of ['slash','jump','dash','shot']) {
+                for (const name of ['slash','jump','dash','shot','skill','ult']) {
                   const action=touch.locator(`#combat [data-action="${name}"]`), b=await action.boundingBox();
                   assert(b && b.width>=64 && b.height>=64, `${name}: size`);
                   assert(await action.evaluate(e=>getComputedStyle(e).borderRadius==='50%'), `${name}: round`);
