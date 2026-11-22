@@ -1,0 +1,547 @@
+name: Web game checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: web-game-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/game-check" playwright@1
+          "$RUNNER_TEMP/game-check/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test Nighttail page
+        env:
+          NODE_PATH: ${{ runner.temp }}/game-check/node_modules
+        run: |
+          mkdir -p test-results
+          python3 -m http.server 8081 --bind 127.0.0.1 > /tmp/nighttail-server.log 2>&1 &
+          node <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const html = fs.readFileSync('nighttail.html', 'utf8');
+          const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+          assert(scripts.length > 0, 'Nighttail script exists');
+          scripts.forEach((s, i) => new vm.Script(s[1], { filename: `nighttail-${i}.js` }));
+          (async () => {
+            const browser = await chromium.launch();
+            for (const view of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'phone', width: 390, height: 844 }]) {
+              const errors = [];
+              const page = await browser.newPage({ viewport: { width: view.width, height: view.height } });
+              page.on('pageerror', error => errors.push(error.message));
+              await page.goto('http://127.0.0.1:8081/nighttail.html', { waitUntil: 'load' });
+              await page.waitForSelector('canvas#game');
+              assert(await page.locator('canvas#game').isVisible(), `Nighttail canvas visible (${view.name})`);
+              assert.equal(await page.evaluate(() => game.mode), 'title', `Nighttail starts on the title screen (${view.name})`);
+              await page.keyboard.press('Space');
+              await page.waitForTimeout(120);
+              assert.equal(await page.evaluate(() => game.mode), 'play', `Space starts the run (${view.name})`);
+              const before = await page.evaluate(() => player.x);
+              await page.keyboard.down('ArrowRight');
+              await page.waitForTimeout(400);
+              await page.keyboard.up('ArrowRight');
+              const moved = await page.evaluate(() => player.x);
+              assert(moved > before, `ArrowRight moves Nighttail (${view.name})`);
+              for (const key of ['j', 'k', 'l', 'Shift', 'Space']) {
+                await page.keyboard.down(key);
+                await page.keyboard.up(key);
+                await page.waitForTimeout(140);
+              }
+              await page.waitForTimeout(200);
+              // Every on-screen control a phone player uses must react: pressing it must not throw,
+              // and Move right / Jump must change the game (player moves, or leaves the ground).
+              const pad = await page.$$('#pad button');
+              assert(pad.length >= 6, `the on-screen pad has its buttons (${view.name}), found ${pad.length}`);
+              for (const btn of pad) {
+                const label = await btn.getAttribute('aria-label');
+                await btn.dispatchEvent('pointerdown');
+                await page.waitForTimeout(90);
+                await btn.dispatchEvent('pointerup');
+                await page.waitForTimeout(60);
+                assert.deepEqual(errors, [], `pressing '${label}' does not throw (${view.name})`);
+              }
+              if (await page.evaluate(() => game.mode) !== 'play') {
+                await page.keyboard.down('Space'); await page.keyboard.up('Space');
+                await page.waitForTimeout(160);
+              }
+              const padBefore = await page.evaluate(() => ({ x: player.x, y: player.y }));
+              await (await page.$('#pad button[data-k="right"]')).dispatchEvent('pointerdown');
+              await page.waitForTimeout(400);
+              await (await page.$('#pad button[data-k="right"]')).dispatchEvent('pointerup');
+              await (await page.$('#pad button[data-k="jump"]')).dispatchEvent('pointerdown');
+              await page.waitForTimeout(200);
+              await (await page.$('#pad button[data-k="jump"]')).dispatchEvent('pointerup');
+              await page.waitForTimeout(200);
+              const padAfter = await page.evaluate(() => ({ x: player.x, y: player.y }));
+              assert(padAfter.x > padBefore.x || padAfter.y !== padBefore.y,
+                `the on-screen Move right and Jump buttons change the game (${view.name})`);
+              const state = await page.evaluate(() => ({
+                finite: Number.isFinite(player.x) && Number.isFinite(player.y),
+                hp: player.hp, area: game.area, areas: AREAS.length,
+                over: document.documentElement.scrollWidth - window.innerWidth
+              }));
+              assert(state.finite, `player position stays finite (${view.name})`);
+              assert(state.hp >= 0 && Number.isFinite(state.hp), `player health stays a real number (${view.name})`);
+              assert(state.areas >= 3, `all three areas exist (${view.name})`);
+              assert.equal(state.over <= 2, true, `no sideways scrolling (${view.name}), overflow ${state.over}px`);
+              await page.screenshot({ path: `test-results/nighttail-${view.name}.png` });
+              assert.deepEqual(errors, [], `no uncaught errors on nighttail.html (${view.name})`);
+              await page.close();
+            }
+            await browser.close();
+            console.log('nighttail.html: clean at desktop and phone width');
+          })().catch(e => { console.error('FAIL: ' + e.message); process.exit(1); });
+          JS
+      - name: Test web game
+        env:
+          NODE_PATH: ${{ runner.temp }}/game-check/node_modules
+        run: |
+          mkdir -p test-results
+          python3 -m http.server 8080 --bind 127.0.0.1 > /tmp/game-server.log 2>&1 &
+          node <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+          assert(scripts.length > 0, 'Game script exists');
+          scripts.forEach((s, i) => new vm.Script(s[1], { filename: `game-${i}.js` }));
+          (async () => {
+            const browser = await chromium.launch();
+            const errors = [];
+            const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+            page.on('pageerror', error => errors.push(error.message));
+            try {
+              await page.goto('http://127.0.0.1:8080/index.html', { waitUntil: 'networkidle' });
+              await page.waitForSelector('#overlay button');
+              assert(await page.locator('canvas#game').isVisible(), 'Game canvas visible');
+              assert(await page.locator('#panel canvas[data-portrait]').isVisible(), 'Title shows the hero portrait');
+              await page.screenshot({ path: 'test-results/title.png' });
+              // Exercise the actual stage setup and simulation, not a separate model.
+              for (let n = 1; n <= 9; n++) {
+                const result = await page.evaluate(n => {
+                  launch(n);
+                  for (let i = 0; i < 240; i++) update(1 / 120);
+                  render();
+                  return {
+                    stage: game.stage, state: game.state,
+                    x: player.x, y: player.y, hp: player.hp,
+                    solids: level.solids.length,
+                    width: level.width, arena: level.arena
+                  };
+                }, n);
+                assert.equal(result.stage, n);
+                assert.equal(result.state, 'play');
+                assert(Number.isFinite(result.x) && Number.isFinite(result.y));
+                assert(result.hp > 0 && result.solids > 0);
+                assert(result.width > result.arena);
+              }
+              await page.evaluate(() => launch(1));
+              await page.keyboard.down('ArrowRight');
+              await page.waitForTimeout(350);
+              await page.keyboard.up('ArrowRight');
+              await page.keyboard.press('Space');
+              await page.keyboard.press('x');
+              await page.waitForTimeout(150);
+              await page.screenshot({ path: 'test-results/gameplay.png' });
+              const economy = await page.evaluate(() => {
+                save.bananas = 10000;
+                const before = save.bananas;
+                const key = upgrades[0].key;
+                const old = save.upgrades[key];
+                const bought = purchase(save, key);
+                persist(); flushSave();
+                return { bought, spent: save.bananas < before, upgraded: save.upgrades[key] === old + 1 };
+              });
+              assert(economy.bought && economy.spent && economy.upgraded, 'Upgrade changes balance and stats');
+              const balance = await page.evaluate(() => save.bananas);
+              await page.reload({ waitUntil: 'networkidle' });
+              assert.equal(await page.evaluate(() => save.bananas), balance, 'Save survives reload');
+              await page.evaluate(() => { launch(1); pauseMenu(); });
+              assert(await page.locator('#overlay').isVisible(), 'Pause screen visible');
+              await page.evaluate(() => resume());
+              assert(await page.locator('#overlay').isHidden(), 'Resume hides overlay');
+              // Browser-standard controller mapping; no physical controller is needed in CI.
+              const controllerWorked = await page.evaluate(() => {
+                const buttons = Array.from({ length: 17 }, () => ({ pressed: false, value: 0 }));
+                Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [{
+                  id: 'CI standard controller', index: 0, connected: true,
+                  mapping: 'standard', axes: [1, 0, 0, 0], buttons
+                }] });
+                pollInput();
+                const before = player.x;
+                for (let i = 0; i < 30; i++) { pollInput(); update(1 / 120); }
+                return player.x > before;
+              });
+              assert(controllerWorked, 'Standard controller moves protagonist');
+              // Active skills and ultimate: real keys, then each effect, cost and cooldown.
+              const tap = async key => { await page.keyboard.down(key); await page.waitForTimeout(90); await page.keyboard.up(key); await page.waitForTimeout(60); };
+              const setPad = held => page.evaluate(held => {
+                const buttons = Array.from({ length: 17 }, (_, i) => ({ pressed: held.includes(i), value: 0 }));
+                Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [{ id: 'CI standard controller', index: 0, connected: true, mapping: 'standard', axes: [0, 0, 0, 0], buttons }] });
+              }, held);
+              const arena = () => page.evaluate(() => {
+                launch(1); enemies.length = 0; shots.length = 0;
+                const e = makeEnemy('turret', player.x + 26, GROUND - 22, 1); e.cool = 99; e.hp = e.maxHp = 500; enemies.push(e);
+                player.inv = 0; player.en = player.maxEn;
+              });
+              await setPad([]);
+              await page.evaluate(() => { save.skills = skills.map(k => k.key); save.skill = 'cyclone'; });
+              await arena();
+              await tap('q');
+              let r = await page.evaluate(() => ({ cd: player.skillCD, spent: player.maxEn - player.en, hurt: enemies[0].maxHp - enemies[0].hp, again: useSkill(), en: player.en }));
+              assert(r.cd > 0 && r.spent > 0 && r.hurt > 0, 'Q uses the equipped skill: cooldown, energy cost and damage');
+              assert.equal(r.again, false, 'Skill rejected during cooldown');
+              assert(await page.evaluate(() => { const en = player.en; player.skillCD = 0; player.en = 3; const used = useSkill(); player.en = en; return !used; }), 'Skill rejected without energy');
+              r = await page.evaluate(() => {
+                const out = {}, run = n => { for (let i = 0; i < n; i++) update(1 / 120); };
+                const ready = key => { save.skill = key; player.skillCD = 0; player.en = player.maxEn; player.inv = 0; };
+                ready('fang'); useSkill(); out.fang = player.vy < 0; const hp0 = enemies[0].hp; run(40); out.fangHit = enemies[0].hp < hp0;
+                ready('volley'); useSkill(); out.volley = shots.filter(b => b.friendly && b.pierce).length === 5;
+                ready('barrier'); useSkill(); const hp = player.hp; hurtPlayer(10); out.barrier = player.hp === hp && player.shield === 1;
+                player.shield = 0; ready('patch'); player.hp = 5; useSkill(); out.patch = player.hp > 5;
+                ready('cyclone'); game.ult = 50; out.ultEarly = useUlt() === false && game.ult === 50;
+                return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Skill effect: ' + name);
+              await arena();
+              await page.evaluate(() => { game.ult = 100; });
+              await tap('e');
+              r = await page.evaluate(() => ({ ult: game.ult, hurt: enemies[0].maxHp - enemies[0].hp }));
+              assert(r.ult < 100 && r.hurt >= 30, 'E spends the full gauge on the ultimate');
+              // Controller: LB = skill, RB = ultimate; neither opens the shop or dashes any more.
+              await arena();
+              await page.evaluate(() => { pollInput(); update(1 / 120); game.ult = 100; });
+              await setPad([4]);
+              r = await page.evaluate(() => { pollInput(); update(1 / 120); return { cd: player.skillCD, state: game.state }; });
+              assert(r.cd > 0 && r.state === 'play', 'LB uses skill and no longer opens the shop');
+              await setPad([5]);
+              r = await page.evaluate(() => { pollInput(); update(1 / 120); return { ult: game.ult, dash: player.dash }; });
+              assert(r.ult < 100 && r.dash <= 0, 'RB fires the ultimate and no longer dashes');
+              await setPad([8]);
+              assert.equal(await page.evaluate(() => { pollInput(); update(1 / 120); return game.state; }), 'shop', 'View button opens the workshop');
+              await setPad([]);
+              await page.evaluate(() => { pollInput(); menu(); });
+              // Banana workshop: buy/equip skills and heroes through the real menu, then reload.
+              await page.evaluate(() => { save = defaults(); save.upgrades.blade = 2; save.bananas = 100; persist(); shop('menu', 0, 'skills'); });
+              assert(await page.locator('[data-unlock="fang"]').isDisabled(), 'Unaffordable skill cannot be clicked');
+              assert(await page.evaluate(() => buyItem(save, 'skill', 'fang') === false && save.bananas === 100 && !save.skills.includes('fang')), 'Insufficient funds rejected, nothing charged');
+              assert(await page.evaluate(() => equipItem(save, 'skill', 'fang') === false && save.skill === 'cyclone'), 'Cannot equip an unowned skill');
+              await page.evaluate(() => { save.bananas = 1000; shop('menu', 0, 'skills'); });
+              await page.click('[data-unlock="fang"]');
+              assert(await page.evaluate(() => save.bananas === 880 && save.skills.includes('fang') && save.skill === 'fang'), 'Skill bought with bananas and equipped');
+              assert(await page.evaluate(() => buyItem(save, 'skill', 'fang') === false && save.bananas === 880 && save.skills.filter(k => k === 'fang').length === 1), 'Duplicate purchase rejected');
+              assert.equal(await page.locator('[data-unlock="fang"]').count(), 0, 'Owned skill no longer offers a buy button');
+              await page.click('[data-equip="cyclone"]');
+              assert.equal(await page.evaluate(() => save.skill), 'cyclone', 'Equip switches the active skill');
+              await page.click('[data-equip="fang"]');
+              await page.click('[data-tab="heroes"]');
+              assert.equal(await page.locator('[data-portrait]').count(), 3, 'Three hero cards with portraits');
+              await page.click('[data-unlock="bat"]');
+              assert(await page.evaluate(() => save.bananas === 530 && save.heroes.includes('bat') && save.hero === 'bat'), 'Bat Monkey bought and selected');
+              await page.click('[data-unlock="hood"]');
+              assert(await page.evaluate(() => save.bananas === 180 && save.hero === 'hood' && buyItem(save, 'hero', 'hood') === false && save.bananas === 180), 'Hood Monkey bought; duplicate rejected');
+              await page.click('[data-equip="bat"]');
+              await page.reload({ waitUntil: 'networkidle' });
+              assert.deepEqual(await page.evaluate(() => ({ b: save.bananas, skill: save.skill, hero: save.hero, skills: [...save.skills].sort(), heroes: [...save.heroes].sort(), blade: save.upgrades.blade })),
+                { b: 180, skill: 'fang', hero: 'bat', skills: ['cyclone', 'fang'], heroes: ['bat', 'hood', 'kip'], blade: 2 }, 'Ownership, loadout and upgrades survive reload');
+              // Heroes play differently and look different.
+              r = await page.evaluate(() => {
+                const pixels = key => { const c = document.createElement('canvas'); c.width = c.height = 48; drawPortrait(c, key); return c.toDataURL(); };
+                const trial = key => {
+                  save.hero = key; launch(1); enemies.length = 0; level.hazards.length = 0;
+                  const out = { hp: player.maxHp }, step = held => { previous = { ...input }; input = held; update(1 / 120); };
+                  let jumps = 0; for (let i = 0; i < 400 && jumps < 5; i++) { const before = player.jumps; step(i % 20 === 0 ? { jump: true } : {}); if (player.jumps > before) jumps++; if (player.ground && i > 30) break; }
+                  out.jumps = jumps;
+                  for (let i = 0; i < 300; i++) step({});
+                  const x = player.x; step({ dash: true }); for (let i = 0; i < 60; i++) step({});
+                  out.dash = Math.round(player.x - x);
+                  input = {}; previous = {};
+                  return out;
+                };
+                const out = { kip: trial('kip'), bat: trial('bat'), hood: trial('hood'), looks: new Set(['kip', 'bat', 'hood'].map(pixels)).size };
+                save.hero = 'bat'; menu(); return out;
+              });
+              assert.equal(r.looks, 3, 'Each hero has a distinct sprite');
+              assert(r.kip.jumps === 2 && r.bat.jumps === 3, 'Bat Monkey has a triple jump: ' + JSON.stringify(r));
+              assert(r.bat.hp < r.kip.hp && r.hood.hp === r.kip.hp, 'Bat Monkey trades armor for mobility');
+              assert(r.hood.dash > r.kip.dash * 1.25, 'Hood Monkey dashes farther: ' + JSON.stringify(r));
+              for (const key of ['bat', 'hood']) assert(await page.evaluate(key => {
+                save.hero = key; launch(1); enemies.length = 0;
+                const e = makeEnemy('turret', player.x + 60, GROUND - 22, 1); e.cool = 99; e.hp = e.maxHp = 500; enemies.push(e);
+                game.ult = 100; const used = useUlt();
+                for (let i = 0; i < 360; i++) { previous = {}; input = {}; update(1 / 120); }
+                return used && e.hp < 500 && player.hp > 0;
+              }, key), key + ' ultimate damages enemies');
+              // Animation: idle, run, jump, fall and dash must each be a distinct drawn pose; every stage has its own backdrop.
+              r = await page.evaluate(() => {
+                const base = { x: 0, y: 0, w: 18, h: 30, vx: 0, vy: 0, face: 1, ground: true, inv: 0, attack: 0, charge: 0, spin: 0, rise: 0, shield: 0, dash: 0, look: 'kip' };
+                const poses = { idle: {}, run: { vx: 110 }, jump: { ground: false, vy: -200 }, fall: { ground: false, vy: 200 }, dash: { dash: .1, vx: 290 } };
+                const main = ctx, shots = new Set();
+                for (const pose of Object.values(poses)) {
+                  const c = document.createElement('canvas'); c.width = c.height = 96;
+                  ctx = c.getContext('2d'); ctx.translate(40, 40); drawRunner({ ...base, ...pose }, true); ctx = main;
+                  shots.add(c.toDataURL());
+                }
+                const skies = new Set();
+                for (let n = 1; n <= 9; n++) { launch(n); render(); skies.add(layers.mid.toDataURL().length + ':' + layers.sky.toDataURL().length); }
+                const t = performance.now(); for (let i = 0; i < 120; i++) { tick++; update(1 / 120); render(); }
+                menu();
+                return { poses: shots.size, skies: skies.size, frame: (performance.now() - t) / 120 };
+              });
+              assert.equal(r.poses, 5, 'Idle, run, jump, fall and dash are distinct poses');
+              assert.equal(r.skies, 9, 'Nine distinct stage backdrops');
+              console.log('Average update+render time per frame: ' + r.frame.toFixed(2) + ' ms');
+              assert(r.frame < 33, 'Frame cost stays within a 30 fps budget even on the software-rendered CI browser');
+              // Physical motion: poses blend instead of snapping, robots break apart, a knocked-out hero ragdolls to rest.
+              r = await page.evaluate(() => {
+                save.hero = 'kip'; launch(1); enemies.length = 0; level.hazards.length = 0; player.x = 600;
+                const sim = (n, held = {}) => { for (let i = 0; i < n; i++) { tick++; previous = { ...input }; input = held; update(1 / 120); if (i % 2) render(); } };
+                sim(40); const idle = player.rig.slice();
+                sim(1, { jump: true }); render(); const first = player.rig.slice(); sim(30, { jump: true }); const later = player.rig.slice();
+                const moved = (a, b) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0);
+                const out = { blend: moved(idle, first) > 0 && moved(idle, first) < moved(idle, later), stretch: false };
+                sim(200); sim(1, { jump: true }); out.stretch = player.squash < 0; sim(200);
+                const e = makeEnemy('gorilla', player.x + 30, GROUND - 30, 1); enemies.push(e); damageEnemy(e, 999);
+                out.debris = effects.filter(f => f.part).length >= 4;
+                player.inv = 0; hurtPlayer(9999); const start = { ...player.rag }; sim(20);
+                out.thrown = player.dead && player.rag.rot !== start.rot && player.rag.y < start.y; sim(150);
+                out.rest = player.rag.rest && Math.abs(Math.cos(player.rag.rot)) < .1 && player.rag.y + player.h <= GROUND + 12;
+                input = {}; previous = {}; menu(); return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Physical animation: ' + name);
+              // Audio: locked until a gesture, then music is sequenced; volume controls drive the gain nodes.
+              const quiet = await browser.newPage();
+              await quiet.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              assert.equal(await quiet.evaluate(() => audio.ctx), null, 'No audio context before the first user gesture');
+              await quiet.keyboard.press('ArrowDown');
+              await quiet.waitForTimeout(500);
+              assert(await quiet.evaluate(() => audio.ctx && audio.ctx.state === 'running' && audio.played > 0), 'Audio unlocks on first gesture and menu music plays');
+              await quiet.close();
+              await page.evaluate(() => { menu(); settings.music = .5; settings.sfx = .7; settings.volume = .7; audio.start(); audio.apply(); });
+              await page.waitForTimeout(400);
+              r = await page.evaluate(async () => {
+                const wait = ms => new Promise(done => setTimeout(done, ms)), out = {};
+                const a = audio.played; await wait(500); out.musicPlays = audio.played > a;
+                const b = audio.played; audio.fx('slash'); out.sfxPlays = audio.played > b;
+                settingsMenu('menu');
+                const slide = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); };
+                slide('volume', 30); out.master = Math.abs(audio.master.gain.value - .3) < .001;
+                slide('music', 0); out.musicGain = audio.music.gain.value === 0;
+                await wait(300); const c = audio.played; await wait(500); out.musicSilent = audio.played === c;
+                slide('sfx', 0); const d = audio.played; audio.fx('jump'); out.sfxSilent = audio.played === d;
+                slide('music', 50); slide('sfx', 70); slide('volume', 70);
+                const songs = new Set(); for (let n = 1; n <= 9; n++) { audio.compose('t', n, false, false); songs.add(audio.song.root + ':' + audio.song.lead.join()); }
+                out.songs = songs.size === 9;
+                audio.compose('t', 1, false, false); const stage = audio.song.rate; audio.compose('t', 1, true, false); out.bossFaster = audio.song.rate < stage;
+                audio.songKey = ''; menu(); return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Audio: ' + name);
+              // Challenge and fairness: varied attacks, always telegraphed, never from off screen.
+              for (const difficulty of ['hard', 'nightmare']) {
+                r = await page.evaluate(difficulty => {
+                  settings.difficulty = difficulty; save.hero = 'kip';
+                  const out = { bossMoves: [], minBossTell: 9, minEnemyTell: 9, offscreen: 0, untold: 0, enemyActs: new Set(), bad: 0 };
+                  const idle = () => { previous = {}; input = {}; };
+                  for (let n = 1; n <= 9; n++) {
+                    // Guardian: stand in the arena, untouchable, and watch a full rotation of moves.
+                    launch(n); enemies.length = 0; player.x = level.arena + 60; update(1 / 120);
+                    const seen = new Set(); let tell = 0, last = '';
+                    for (let i = 0; i < 120 * 45 && game.boss; i++) {
+                      idle(); player.inv = 1; player.hp = player.maxHp; update(1 / 120); const b = game.boss; if (!b) break;
+                      if (b.state === 'tell') { tell += 1 / 120; if (!b.warning) out.bad++; }
+                      if (b.state === 'attack' && last === 'tell') { out.minBossTell = Math.min(out.minBossTell, tell); seen.add(b.action); }
+                      if (b.state !== 'tell') tell = 0; last = b.state;
+                      if (i === 600) b.hp = b.maxHp * .45; if (i === 2400) b.hp = b.maxHp * .2;
+                      if (shots.some(q => !Number.isFinite(q.x + q.y))) out.bad++;
+                    }
+                    out.bossMoves.push(BOSS_MOVES[n - 1].every(m => seen.has(m)) ? new Set(BOSS_MOVES[n - 1]).size : 0);
+                    // Robots: walk the stage untouchable; every attack needs a wind-up and an on-screen attacker.
+                    launch(n); const state = new Map(), told = new Map();
+                    for (let i = 0; i < 120 * 40; i++) {
+                      previous = { ...input }; input = { right: true, jump: i % 90 < 45 }; player.inv = 1; player.hp = player.maxHp; if (game.boss) break;
+                      const before = shots.length; update(1 / 120);
+                      for (const e of enemies) { if (e.dead) continue; const was = state.get(e);
+                        if (e.state === 'tell') told.set(e, (told.get(e) || 0) + 1 / 120);
+                        const fired = e.state === 'idle' && was === 'tell' && e.cool > 1; // instant attacks (wasp shot) finish within one update
+                        if ((e.state === 'act' && was !== 'act') || fired) { out.enemyActs.add(e.type + ':' + e.act); if (was !== 'tell') out.untold++; else out.minEnemyTell = Math.min(out.minEnemyTell, told.get(e)); told.set(e, 0); if (!onScreen(e)) out.offscreen++; }
+                        state.set(e, e.state); }
+                      for (const q of shots.slice(before)) if (!q.friendly && (q.x < game.cam - 40 || q.x > game.cam + W + 40)) out.offscreen++;
+                    }
+                  }
+                  out.enemyActs = [...out.enemyActs].sort(); idle(); return out;
+                }, difficulty);
+                assert(r.bossMoves.every(count => count >= 4), difficulty + ': every guardian uses at least four distinct moves: ' + r.bossMoves);
+                assert(r.minBossTell >= .49, difficulty + ': guardian wind-ups last at least half a second, got ' + r.minBossTell);
+                assert(r.minEnemyTell >= .39 && r.untold === 0, difficulty + ': every robot attack is telegraphed: ' + JSON.stringify(r));
+                assert.equal(r.offscreen, 0, difficulty + ': nothing attacks from off screen');
+                assert.equal(r.bad, 0, difficulty + ': warnings always labelled, projectiles always valid');
+                for (const act of ['beetle:charge', 'gorilla:leap', 'shield:bash', 'turret:burst', 'wasp:dive', 'wasp:shoot']) assert(r.enemyActs.includes(act), difficulty + ': robots use ' + act + ' (saw ' + r.enemyActs + ')');
+              }
+              r = await page.evaluate(() => {
+                settings.difficulty = 'hard'; const out = {}, idle = () => { previous = {}; input = {}; };
+                launch(3); enemies.length = 0; for (let i = 0; i < 30; i++) { idle(); update(1 / 120); }
+                const hp = player.hp; player.y = H + 80; idle(); update(1 / 120);
+                out.pitRescue = !player.dead && player.hp < hp && player.y + player.h <= GROUND && player.inv > 1;
+                const laser = level.hazards.find(h => h.kind === 'laser'); out.laserExists = !!laser;
+                let off = 0, warned = true, was = false, warn = false; // was=false: ignore a gate that is already firing when sampling starts
+                for (let i = 0; i < 360; i++) { idle(); player.inv = 1; update(1 / 120); if (laser.off) off++; if (was && !laser.off && !warn) warned = false; was = laser.off; warn = laser.warn; }
+                out.laserWindow = off / 120 >= 1.5; out.laserWarned = warned;
+                enemies.length = 0; shots.length = 0; const e = makeEnemy('shield', player.x + 60, GROUND - 22, 3); e.cool = 99; enemies.push(e);
+                idle(); update(1 / 120); const before = e.hp; firePlayer(1); for (let i = 0; i < 60; i++) { idle(); player.inv = 1; update(1 / 120); }
+                out.shieldBlocks = e.hp === before; damageEnemy(e, 5); out.shieldHurtByBlade = e.hp < before;
+                idle(); menu(); return out;
+              });
+              for (const [name, ok] of Object.entries(r)) assert(ok, 'Hazards: ' + name);
+              await page.evaluate(() => { settings.difficulty = 'hard'; });
+              // Menus are usable from keyboard and controller, not only by pointer.
+              await page.evaluate(() => menu());
+              const focused = () => page.evaluate(() => document.activeElement.textContent);
+              assert((await focused()).includes('RELAY'), 'Title focuses the primary play button');
+              await page.keyboard.press('ArrowDown');
+              assert.equal(await focused(), 'STAGE SELECT', 'Arrow keys move menu focus');
+              await page.keyboard.press('Enter');
+              assert.equal(await page.locator('#panel h2').textContent(), 'DAWN ROUTE', 'Enter activates the focused button');
+              await page.keyboard.press('Escape');
+              assert(await page.locator('#panel h1').isVisible(), 'Escape goes back to the title');
+              await page.evaluate(() => shop('menu'));
+              await setPad([5]);
+              await page.evaluate(() => pollInput());
+              assert.equal(await page.locator('#panel .tabs .on').textContent(), 'SKILLS', 'RB switches workshop tab');
+              await setPad([13]);
+              const before = await focused();
+              await page.evaluate(() => pollInput());
+              assert.notEqual(await focused(), before, 'D-pad moves menu focus');
+              await setPad([1]);
+              await page.evaluate(() => pollInput());
+              assert(await page.locator('#panel h1').isVisible(), 'Controller B goes back');
+              await setPad([]);
+              await page.evaluate(() => pollInput());
+              // A save written before skills/heroes existed must load intact with defaults filled in.
+              await page.evaluate(() => {
+                menu();
+                localStorage.setItem(SEED, JSON.stringify({ version: 2, bananas: 321, upgrades: { blade: 2, bolt: 1, armor: 0, energy: 3, magnet: 0 }, unlocked: 4, cleared: [1, 2, 3], best: { 1: 61.5 }, stage: 4, kills: 40, deaths: 3, time: 900, won: false }));
+                persist = () => true; // keep the unload handler from overwriting the legacy fixture
+              });
+              await page.reload({ waitUntil: 'networkidle' });
+              assert.deepEqual(await page.evaluate(() => ({ b: save.bananas, u: save.upgrades, unlocked: save.unlocked, cleared: save.cleared, stage: save.stage, best: save.best[1], skills: save.skills, skill: save.skill, heroes: save.heroes, hero: save.hero })),
+                { b: 321, u: { blade: 2, bolt: 1, armor: 0, energy: 3, magnet: 0 }, unlocked: 4, cleared: [1, 2, 3], stage: 4, best: 61.5, skills: ['cyclone'], skill: 'cyclone', heroes: ['kip'], hero: 'kip' }, 'Old save preserved and migrated');
+              assert(await page.evaluate(() => { const d = cleanSave({ version: 2, hero: 'bat', skill: 'patch', skills: ['nope'], heroes: 'x' }); return d.hero === 'kip' && d.skill === 'cyclone' && d.skills.length === 1; }), 'Unowned or invalid loadout falls back safely');
+              const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+              const touch = await mobile.newPage();
+              touch.on('pageerror', error => errors.push(error.message));
+              await touch.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              await touch.evaluate(() => { settings.touch = 'on'; launch(1); updateControls(); });
+              assert(await touch.locator('#touch').isVisible(), 'Mobile controls visible');
+              // Joystick: real multi-touch through the browser's touch pipeline (CDP), not synthetic state.
+              const cdp = await mobile.newCDPSession(touch);
+              const fingers = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map(([id, x, y]) => ({ id, x, y })) });
+              const settle = () => touch.waitForTimeout(120);
+              assert.equal(await touch.locator('[data-action="left"],[data-action="right"]').count(), 0, 'Arrow buttons replaced by joystick');
+              const sb = await touch.locator('#stick').boundingBox();
+              assert(sb && sb.width >= 110, 'Joystick is thumb sized');
+              const sx = sb.x + sb.width / 2, sy = sb.y + sb.height / 2;
+              await fingers('touchStart', [[1, sx, sy]]);
+              await fingers('touchMove', [[1, sx + 4, sy]]);
+              await settle();
+              assert(await touch.evaluate(() => !input.left && !input.right), 'Joystick dead zone ignores tiny movement');
+              const x0 = await touch.evaluate(() => player.x);
+              await fingers('touchMove', [[1, sx + 70, sy]]);
+              await touch.waitForTimeout(350);
+              assert(await touch.evaluate(x => input.right && !input.left && player.x > x + 10, x0), 'Joystick right moves protagonist');
+              const jb = await touch.locator('#combat [data-action="jump"]').boundingBox();
+              await fingers('touchStart', [[1, sx + 70, sy], [2, jb.x + jb.width / 2, jb.y + jb.height / 2]]);
+              await settle();
+              assert(await touch.evaluate(() => input.right && input.jump), 'Move and action held simultaneously');
+              // For touchEnd, CDP takes the points being lifted: lift the joystick finger only.
+              await fingers('touchEnd', [[1, sx + 70, sy]]);
+              await settle();
+              assert(await touch.evaluate(() => stick.id === null && stick.x === 0 && !input.right && input.jump), 'Releasing joystick stops movement, action stays held');
+              await fingers('touchEnd', []);
+              await settle();
+              assert(await touch.evaluate(() => !input.jump && touches.size === 0), 'Action released');
+              await fingers('touchStart', [[1, sx, sy]]);
+              await fingers('touchMove', [[1, sx - 70, sy]]);
+              await settle();
+              assert(await touch.evaluate(() => input.left && !input.right), 'Joystick left');
+              await fingers('touchCancel', []);
+              await settle();
+              assert(await touch.evaluate(() => stick.x === 0 && !input.left), 'Cancelled touch clears movement');
+              for (const [name, interrupt] of [['pause', 'pauseMenu()'], ['blur', "dispatchEvent(new Event('blur'))"], ['backgrounding', "dispatchEvent(new Event('pagehide'))"]]) {
+                await touch.evaluate(() => { if (game.state !== 'play') resume(); });
+                await fingers('touchStart', [[1, sx, sy]]);
+                await fingers('touchMove', [[1, sx + 70, sy]]);
+                await settle();
+                assert(await touch.evaluate(() => input.right), name + ': joystick held before interruption');
+                await touch.evaluate(interrupt);
+                await settle();
+                assert(await touch.evaluate(() => stick.id === null && stick.x === 0 && !input.right), name + ' clears joystick movement');
+                await fingers('touchEnd', []);
+              }
+              await touch.evaluate(() => { if (game.state !== 'play') resume(); });
+              // Holding the joystick while slashing and jumping must do all three at once.
+              const center = async name => { const b = await touch.locator(`#combat [data-action="${name}"]`).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+              const [slx, sly] = await center('slash'), [jx, jy] = await center('jump');
+              const xa = await touch.evaluate(() => player.x);
+              await fingers('touchStart', [[1, sx, sy]]);
+              await fingers('touchMove', [[1, sx + 70, sy]]);
+              await fingers('touchStart', [[1, sx + 70, sy], [2, slx, sly], [3, jx, jy]]);
+              await touch.waitForTimeout(160);
+              assert(await touch.evaluate(x => player.x > x && player.attack > 0 && !player.ground, xa), 'Move + slash + jump work together');
+              await fingers('touchEnd', []);
+              await settle();
+              assert(await touch.evaluate(() => {
+                const blocked = type => { const e = new Event(type, { bubbles: true, cancelable: true }); document.querySelector('#combat button').dispatchEvent(e); return e.defaultPrevented; };
+                return blocked('contextmenu') && blocked('dblclick') && blocked('touchmove') && getComputedStyle(document.querySelector('#combat button')).touchAction === 'none';
+              }), 'Browser gestures are blocked on the controls');
+              for (const viewport of [{width:844,height:390},{width:568,height:320},{width:390,height:844}]) {
+                await touch.setViewportSize(viewport);
+                const stickBox = await touch.locator('#stick').boundingBox();
+                assert(stickBox.x >= 0 && stickBox.y >= 0 && stickBox.x + stickBox.width <= viewport.width && stickBox.y + stickBox.height <= viewport.height, 'Joystick inside viewport');
+                const bounds=[stickBox];
+                for (const name of ['slash','jump','dash','shot','skill','ult']) {
+                  const action=touch.locator(`#combat [data-action="${name}"]`), b=await action.boundingBox();
+                  assert(b && b.width>=64 && b.height>=64, `${name}: size`);
+                  assert(await action.evaluate(e=>getComputedStyle(e).borderRadius==='50%'), `${name}: round`);
+                  assert(b.x>=0 && b.y>=0 && b.x+b.width<=viewport.width && b.y+b.height<=viewport.height, `${name}: viewport`);
+                  for(const a of bounds) assert(b.x>=a.x+a.width || b.x+b.width<=a.x || b.y>=a.y+a.height || b.y+b.height<=a.y, `${name}: overlap`);
+                  bounds.push(b);
+                  await touch.mouse.move(b.x+b.width/2,b.y+b.height/2);
+                  await touch.mouse.down();
+                  assert(await touch.evaluate(n=>[...touches.values()].includes(n),name), `${name}: press`);
+                  assert(await action.evaluate(b=>b.classList.contains('pressed')), `${name}: feedback`);
+                  await touch.mouse.up();
+                  assert(await touch.evaluate(n=>![...touches.values()].includes(n),name), `${name}: release`);
+                  await action.tap();
+                }
+              }
+              await touch.screenshot({ path: 'test-results/mobile.png' });
+              await mobile.close();
+              assert.deepEqual(errors, [], 'No browser runtime errors');
+              console.log('PASS: syntax, boot, nine stages, keyboard, upgrades, save/reload, pause, controller, skills, workshop, heroes, animation, audio, fairness, menus, joystick and touch layout checks');
+            } finally {
+              fs.writeFileSync('test-results/browser-errors.json', JSON.stringify(errors, null, 2));
+              await browser.close();
+            }
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          JS
+      - name: Upload screenshots and browser errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-test-results
+          path: test-results/
