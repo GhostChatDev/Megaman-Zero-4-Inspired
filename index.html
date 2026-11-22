@@ -360,7 +360,6 @@ function render(){draw();}
 function togglePause(){
  if(game.mode==="play"){game.mode="paused";stopLoop();showOverlay("paused");pauseBtn.textContent="Resume";}
  else if(game.mode==="paused"){game.mode="play";overlay.hidden=true;pauseBtn.textContent="Pause";startLoop();}
- else {pauseBtn.textContent="Pause";launch(save?save.area:0);}
 }
 function showOverlay(mode){
  game.mode=mode;
