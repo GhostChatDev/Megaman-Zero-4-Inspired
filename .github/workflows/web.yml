@@ -326,7 +326,7 @@ jobs:
               for (const [name, ok] of Object.entries(r)) assert(ok, 'Physical animation: ' + name);
               // Audio: locked until a gesture, then music is sequenced; volume controls drive the gain nodes.
               const quiet = await browser.newPage();
-              await quiet.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              await quiet.goto('http://127.0.0.1:8080/legacy.html', { waitUntil: 'networkidle' });
               assert.equal(await quiet.evaluate(() => audio.ctx), null, 'No audio context before the first user gesture');
               await quiet.keyboard.press('ArrowDown');
               await quiet.waitForTimeout(500);
@@ -444,7 +444,7 @@ jobs:
               const mobile = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
               const touch = await mobile.newPage();
               touch.on('pageerror', error => errors.push(error.message));
-              await touch.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              await touch.goto('http://127.0.0.1:8080/legacy.html', { waitUntil: 'networkidle' });
               await touch.evaluate(() => { settings.touch = 'on'; launch(1); updateControls(); });
               assert(await touch.locator('#touch').isVisible(), 'Mobile controls visible');
               // Joystick: real multi-touch through the browser's touch pipeline (CDP), not synthetic state.
