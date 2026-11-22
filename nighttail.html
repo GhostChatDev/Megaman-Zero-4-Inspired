@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Nighttail — The Hollow Crown</title>
+<style>
+:root{--paper:#f4f1ea;--surface:#fffdf8;--border:#d9d4c7;--ink:#15151c;--muted:#5b5b67;--accent:#a8122a;--r:8px}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.app{max-width:900px;margin:0 auto;padding:16px;display:grid;gap:16px}
+h1{font-size:32px;line-height:1.15;margin:0}
+h2{font-size:20px;margin:0}
+.muted{color:var(--muted)}
+.hud{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.stage{position:relative;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:#0d0d12}
+canvas{display:block;width:100%;height:auto;aspect-ratio:16/9}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:rgba(11,11,16,.82);color:var(--paper);padding:16px;text-align:center}
+.overlay[hidden]{display:none}
+.overlay .card{max-width:420px;display:grid;gap:16px;justify-items:center}
+#ovBtns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+button{font:inherit;padding:8px 16px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);color:var(--ink);cursor:pointer;min-height:44px}
+button:hover{background:#efeade}
+button:active{transform:translateY(1px)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.pad{display:none;grid-template-columns:repeat(4,1fr);gap:8px}
+.pad button{min-height:56px;touch-action:manipulation}
+@media (max-width:820px),(hover:none){.pad{display:grid}}
+.notice{min-height:24px;margin:0}
+.keys{margin:0;color:var(--muted)}
+</style>
+</head>
+<body>
+<main class="app">
+ <header class="hud">
+  <h1>Nighttail <span class="muted" style="font-size:20px">The Hollow Crown</span></h1>
+  <div class="hud">
+   <span id="hudArea" class="muted">Silent Causeway</span>
+   <span id="hudHp">HP 8</span>
+   <span id="hudWeapon">Blade + darts</span>
+   <button id="pauseBtn">Pause</button>
+  </div>
+ </header>
+ <div class="stage">
+  <canvas id="game" width="480" height="270" aria-label="Nighttail side-scrolling action game"></canvas>
+  <div id="overlay" class="overlay">
+   <div class="card">
+    <h2 id="ovTitle">Nighttail: The Hollow Crown</h2>
+    <p id="ovText" style="margin:0"></p>
+    <div id="ovBtns"></div>
+   </div>
+  </div>
+ </div>
+ <p id="notice" class="notice" aria-live="polite"></p>
+ <p class="keys">Move A/D or arrows · Jump Space · Blade J · Dart K · Steal L · Dash Shift · Pause Esc</p>
+ <div class="pad" id="pad">
+  <button data-k="left" aria-label="Move left">Left</button>
+  <button data-k="right" aria-label="Move right">Right</button>
+  <button data-k="jump" aria-label="Jump">Jump</button>
+  <button data-k="blade" aria-label="Blade attack">Blade</button>
+  <button data-k="dart" aria-label="Throw dart">Dart</button>
+  <button data-k="steal" aria-label="Steal weapon">Steal</button>
+  <button data-k="dash" aria-label="Dash">Dash</button>
+  <button data-k="pause" aria-label="Pause game">Pause</button>
+ </div>
+</main>
+<script>
+"use strict";
+const KEY="nighttail.save.v1";
+let storageOK=true, save=null;
+try{
+ const raw=JSON.parse(localStorage.getItem(KEY)||"null");
+ if(raw&&raw.version===1&&Number.isInteger(raw.area)&&raw.area>=0&&raw.area<3)save=raw;
+}catch(e){storageOK=false}
+
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+const W=canvas.width,H=canvas.height;
+const overlay=document.getElementById("overlay");
+const ovTitle=document.getElementById("ovTitle"),ovText=document.getElementById("ovText"),ovBtns=document.getElementById("ovBtns");
+const hudArea=document.getElementById("hudArea"),hudHp=document.getElementById("hudHp"),hudWeapon=document.getElementById("hudWeapon");
+const noticeEl=document.getElementById("notice"),pauseBtn=document.getElementById("pauseBtn");
+
+const GRAV=0.62,RUN=2.7,JUMP=-10.2,DASH=7.4,MAXFALL=10,FLOOR=230;
+function s(x,y,w,h){return{x,y,w,h}}
+const AREAS=[
+ {name:"Silent Causeway",width:1240,start:40,exit:1200,boss:false,
+  intro:"Rook: Mira's signal came from the keep. Move right and jump the broken bridge.",
+  solids:[s(0,230,360,40),s(400,230,120,40),s(300,176,72,12),s(560,142,140,12),s(740,230,500,40),s(880,168,120,12)],
+  guards:[{x:820,y:210,weapon:null,range:90}],spikes:[]},
+ {name:"Ashen Cloister",width:1420,start:40,exit:1380,boss:false,
+  intro:"Sable: hit a guard twice with the blade, walk close, then press L to steal its weapon.",
+  solids:[s(0,230,300,40),s(360,230,240,40),s(660,230,260,40),s(980,230,440,40),s(320,168,80,12),s(640,150,90,12),s(900,158,90,12)],
+  guards:[{x:420,y:210,weapon:"boltcaster",range:90},{x:1040,y:210,weapon:"censer",range:110}],
+  spikes:[s(600,222,44,8)]},
+ {name:"The Bell Chamber",width:760,start:40,exit:700,boss:true,
+  intro:"Mira: the Bell Warden guards the voice conduit. Watch its windup, then strike.",
+  solids:[s(0,230,760,40),s(150,180,90,12),s(520,180,90,12)],guards:[],spikes:[]}
+];
+
+let level=null,shots=[],camX=0,messageTime=0;
+const player={x:40,y:FLOOR-24,w:14,h:24,vx:0,vy:0,hp:8,maxHp:8,onGround:false,facing:1,atk:0,cool:0,dash:0,dashCd:0,invuln:0,weapon:null};
+const game={mode:"title",area:save?save.area:0,deaths:save?(save.deaths|0):0,time:0,shake:0,elapsed:0};
+
+function buildArea(i){
+ const d=AREAS[i];
+ level={name:d.name,width:d.width,exit:d.exit,start:d.start,
+  solids:d.solids.map(o=>Object.assign({},o)),spikes:d.spikes.map(o=>Object.assign({},o)),intro:d.intro,
+  guards:d.guards.map(g=>({x:g.x,y:g.y,w:16,h:20,hp:2,weapon:g.weapon,home:g.x,range:g.range,dir:1,windup:0,cd:0,stun:0,weakened:false,dead:false})),
+  boss:d.boss?{x:600,y:FLOOR-44,w:34,h:44,hp:24,maxHp:24,phase:1,windup:0,cd:110,atk:null,facing:-1,invuln:0}:null};
+ shots=[];camX=0;hudArea.textContent=level.name;
+}
+function say(text,frames){
+ noticeEl.textContent=text;messageTime=frames||240;
+}
+function persist(){
+ try{
+  localStorage.setItem(KEY,JSON.stringify({version:1,area:game.area,deaths:game.deaths,elapsed:Math.floor(game.elapsed)}));
+  save={version:1,area:game.area,deaths:game.deaths};
+ }catch(e){storageOK=false}
+}
+function launch(i){
+ game.area=Math.max(0,Math.min(AREAS.length-1,i|0));buildArea(game.area);
+ player.x=level.start;player.y=FLOOR-player.h;player.vx=0;player.vy=0;player.hp=player.maxHp;
+ player.facing=1;player.atk=0;player.cool=0;player.dash=0;player.dashCd=0;player.invuln=60;player.weapon=null;
+ game.mode="play";game.time=0;overlay.hidden=true;
+ say(level.intro,360);persist();startLoop();render();
+}
+function ov(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function fire(x,y,vx,vy,hostile,damage,life,w,h){
+ shots.push({x,y,w:w||(hostile?10:14),h:h||(hostile?10:6),vx,vy,hostile,damage,life:life||150});
+}
+function moveEnt(e,dx,dy){
+ e.x+=dx;
+ for(const o of level.solids)if(ov(e,o)){if(dx>0)e.x=o.x-e.w;else if(dx<0)e.x=o.x+o.w;}
+ e.y+=dy;e.onGround=false;
+ for(const o of level.solids)if(ov(e,o)){if(dy>0){e.y=o.y-e.h;e.onGround=true;}else if(dy<0)e.y=o.y+o.h;e.vy=0;}
+ if(e.x<0)e.x=0;
+ if(e.x+e.w>level.width)e.x=level.width-e.w;
+}
+function damage(n){
+ if(player.invuln>0)return;
+ player.hp-=n;player.invuln=70;game.shake=6;
+ say("Rook is hit. Find the checkpoint pattern and keep moving.",120);
+ if(player.hp<=0)die();
+}
+function die(){
+ player.hp=0;game.mode="dead";game.deaths+=1;
+ persist();stopLoop();
+ showOverlay("dead");
+}
+function win(){
+ game.mode="won";stopLoop();
+ try{localStorage.setItem(KEY,JSON.stringify({version:1,area:0,deaths:game.deaths,elapsed:Math.floor(game.elapsed)}))}catch(e){storageOK=false}
+ showOverlay("won");
+}
+function swing(){
+ const hb={x:player.facing>0?player.x+player.w:player.x-26,y:player.y-4,w:26,h:28};
+ for(const g of level.guards){
+  if(g.dead||g.weakened||!ov(hb,g))continue;
+  g.hp-=1;g.stun=14;
+  say(g.hp<=0?"The guard staggers. Press L close by to steal its weapon.":"Guard hit. One more blade strike weakens it.",150);
+  if(g.hp<=0){g.weakened=true;g.stun=9999;}
+ }
+ const b=level.boss;
+ if(b&&b.hp>0&&b.invuln<=0&&ov(hb,b)){
+  b.hp-=1;b.invuln=10;
+  say(b.hp>0?"Bell Warden: "+b.hp+"/"+b.maxHp:"The Bell Warden falls. Reach the door on the far right.",180);
+ }
+}
+function stealTry(){
+ if(player.weapon){say("You already carry a stolen weapon: "+player.weapon+".",120);return true;}
+ for(const g of level.guards){
+  if(g.dead||!g.weakened)continue;
+  if(Math.abs(g.x-player.x)<36){
+   g.dead=true;player.weapon=g.weapon||"boltcaster";
+   say("Stolen: "+player.weapon+". Press K to throw it—it hits harder.",240);
+   return true;
+  }
+ }
+ say("No weakened guard within reach. Two blade hits weaken a guard.",150);
+ return false;
+}
+function update(dt){
+ const t=Math.min(dt*60,3);
+ if(game.mode!=="play"){pressed.clear();return;}
+ game.time+=t;game.elapsed+=dt;
+ if(player.dash>0){player.dash-=t;player.vx=player.facing*DASH;}
+ else if(held.has("left")){player.vx=-RUN;player.facing=-1;}
+ else if(held.has("right")){player.vx=RUN;player.facing=1;}
+ else player.vx=0;
+ if(pressed.has("jump")&&player.onGround)player.vy=JUMP;
+ if(held.has("dash")&&player.dash<=0&&player.dashCd<=0){player.dash=9;player.dashCd=42;player.invuln=Math.max(player.invuln,10);}
+ player.dashCd=Math.max(0,player.dashCd-t);
+ if(player.dash<=0)player.vy=Math.min(player.vy+GRAV*t,MAXFALL);
+ moveEnt(player,player.vx*t,player.vy*t);
+ if(player.atk>0)player.atk-=t;
+ if(pressed.has("blade")&&player.atk<=0){player.atk=14;swing();}
+ if(player.cool>0)player.cool-=t;
+ if(pressed.has("dart")&&player.cool<=0){
+  player.cool=18;
+  const dmg=player.weapon==="censer"?2:1;
+  fire(player.x+(player.facing>0?player.w:-14),player.y+7,player.facing*6,0,false,dmg,150);
+ }
+ if(pressed.has("steal"))stealTry();
+ if(player.invuln>0)player.invuln-=t;
+ for(const sp of level.spikes)if(ov(player,sp)&&player.invuln<=0)damage(2);
+ for(const g of level.guards){
+  if(g.dead)continue;
+  if(g.cd>0)g.cd-=t;
+  if(g.stun>0){g.stun-=t;continue;}
+  const d=player.x-g.x;
+  if(Math.abs(d)<g.range){
+   g.dir=d>0?1:-1;
+   if(g.windup>0){g.windup-=t;if(g.windup<=0&&g.cd<=0){fire(g.x+g.w/2,g.y+6,g.dir*3.2,0,true,g.weapon==="censer"?2:1,180);g.cd=80;}}
+   else if(g.cd<=0){g.windup=34;}
+  }else{
+   g.x+=g.dir*0.6*t;
+   if(g.x<g.home-40)g.dir=1;
+   if(g.x>g.home+g.range)g.dir=-1;
+  }
+  if(ov(player,g))damage(1);
+ }
+ const b=level.boss;
+ if(b&&b.hp>0){
+  b.invuln=Math.max(0,b.invuln-t);
+  if(b.phase===1&&b.hp<=12){b.phase=2;say("The Bell Warden rings in fury—it strikes faster now.",240);}
+  const d=player.x-b.x;b.facing=d>0?1:-1;
+  if(b.windup>0){
+   b.windup-=t;
+   if(b.windup<=0){
+    if(b.atk==="slash"){
+     const hb={x:b.facing>0?b.x+b.w:b.x-30,y:b.y,w:30,h:b.h};
+     if(ov(player,hb))damage(2);
+    }else{
+     const n=b.phase===2?5:3;
+     for(let i=0;i<n;i++)fire(b.x+b.w/2,b.y+12,((i-(n-1)/2))*1.7,-2.2+i*0.5,true,1,240);
+    }
+    b.atk=null;b.cd=b.phase===2?70:110;
+   }
+  }else if(b.cd>0){
+   b.cd-=t;
+   if(Math.abs(d)>60)b.x+=Math.sign(d)*1.1*t;
+  }else{
+   b.windup=b.phase===2?30:46;b.atk=Math.abs(d)<70?"slash":"bells";
+  }
+  if(ov(player,b))damage(1);
+ }
+ for(const sh of shots){
+  sh.x+=sh.vx*t;sh.y+=sh.vy*t;sh.life-=t;
+  if(sh.hostile){
+   if(ov(player,sh)){damage(sh.damage);sh.life=0;}
+  }else{
+   for(const g of level.guards){
+    if(g.dead||g.weakened||!ov(g,sh))continue;
+    g.hp-=sh.damage;g.stun=10;sh.life=0;
+    if(g.hp<=0){g.weakened=true;g.stun=9999;}
+   }
+   if(b&&b.hp>0&&b.invuln<=0&&ov(b,sh)){b.hp-=sh.damage;b.invuln=8;sh.life=0;}
+  }
+  if(sh.x<-60||sh.x>level.width+60||sh.y<-80||sh.y>H+80)sh.life=0;
+ }
+ shots=shots.filter(sh=>sh.life>0);
+ if(messageTime>0)messageTime-=t;
+ if(game.shake>0)game.shake-=t;
+ if(player.x+player.w>level.exit){
+  if(!level.boss)launch(game.area+1);
+  else if(level.boss.hp<=0)win();
+ }
+ pressed.clear();
+}
+const held=new Set(),pressed=new Set();
+const reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function draw(){
+ ctx.setTransform(1,0,0,1,0,0);
+ if(level){
+  camX=Math.max(0,Math.min(player.x-W*0.42,level.width-W));
+  if(level.width<W)camX=0;
+ }else camX=0;
+ const shake=game.shake>0&&!reduced?game.shake:0;
+ ctx.fillStyle="#101018";ctx.fillRect(0,0,W,H);
+ ctx.translate(-camX,0);
+ if(shake)ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake);
+ ctx.fillStyle="#1b1b26";ctx.fillRect(camX,0,W,H);
+ if(level){
+  ctx.fillStyle="#33334a";
+  for(const o of level.solids)ctx.fillRect(o.x,o.y,o.w,o.h);
+  ctx.fillStyle="#8c8c9c";
+  for(const o of level.solids)ctx.fillRect(o.x,o.y,o.w,3);
+  ctx.fillStyle="#a8122a";
+  for(const sp of level.spikes)ctx.fillRect(sp.x,sp.y,sp.w,sp.h);
+  ctx.fillStyle="#f4f1ea";
+  ctx.fillRect(level.exit,FLOOR-40,6,40);
+  for(const g of level.guards){
+   if(g.dead)continue;
+   ctx.fillStyle=g.weakened?"#c9c9d4":"#6b6b86";
+   ctx.fillRect(g.x,g.y,g.w,g.h);
+   ctx.fillStyle="#15151c";ctx.fillRect(g.x+(g.dir>0?g.w-5:1),g.y+4,4,3);
+   if(g.windup>0){ctx.fillStyle="#e0b040";ctx.fillRect(g.x,g.y-6,g.w,3);}
+   if(g.weakened){ctx.fillStyle="#f4f1ea";ctx.font="10px ui-sans-serif,system-ui,monospace";ctx.fillText("STEAL",g.x-4,g.y-12);}
+  }
+  const b=level.boss;
+  if(b&&b.hp>0){
+   ctx.fillStyle=b.invuln>0?"#e2e2ea":"#a8122a";
+   ctx.fillRect(b.x,b.y,b.w,b.h);
+   ctx.fillStyle="#f4f1ea";
+   ctx.fillRect(b.x+8,b.y+10,6,6);ctx.fillRect(b.x+20,b.y+10,6,6);
+   if(b.windup>0){ctx.fillStyle="#e0b040";ctx.fillRect(b.x,b.y-8,b.w,4);}
+   ctx.fillStyle="#15151c";ctx.fillRect(b.x,b.y-18,b.w*(b.hp/b.maxHp),5);
+  }
+  if(!(player.invuln>0&&Math.floor(game.time/4)%2)){
+   ctx.fillStyle="#f4f1ea";
+   ctx.fillRect(player.x,player.y,player.w,player.h);
+   ctx.fillStyle="#a8122a";
+   ctx.fillRect(player.x+(player.facing>0?8:2),player.y+5,5,4);
+  }
+  if(player.atk>0){
+   ctx.fillStyle="rgba(244,241,234,.75)";
+   ctx.fillRect(player.facing>0?player.x+player.w:player.x-26,player.y-4,26,28);
+  }
+  for(const sh of shots){
+   ctx.fillStyle=sh.hostile?"#a8122a":"#f4f1ea";
+   ctx.fillRect(sh.x,sh.y,sh.w,sh.h);
+  }
+ }
+ ctx.setTransform(1,0,0,1,0,0);
+ ctx.fillStyle="rgba(13,13,18,.72)";ctx.fillRect(0,0,W,20);
+ ctx.fillStyle="#f4f1ea";ctx.font="11px ui-sans-serif,system-ui,monospace";
+ ctx.fillText("HP "+Math.max(0,player.hp)+"/"+player.maxHp+"   "+level.name+"   "+(player.weapon?"weapon: "+player.weapon:"weapon: none"),8,14);
+ if(messageTime>0&&noticeEl.textContent){
+  ctx.fillStyle="rgba(13,13,18,.8)";ctx.fillRect(0,H-26,W,26);
+  ctx.fillStyle="#f4f1ea";ctx.fillText(noticeEl.textContent,8,H-9);
+ }
+}
+
+let raf=0,last=0,loopOff=0;
+function loop(ts){
+ if(game.mode!=="play"){raf=0;return;}
+ const dt=Math.min(0.05,(ts-(last||ts))/1000);last=ts;
+ update(dt);draw();
+ raf=requestAnimationFrame(loop);
+}
+function startLoop(){
+ if(loopOff||raf)return;
+ if(window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+  // reduced motion: draw once per press instead of a running animation
+  render();return;
+ }
+ last=0;raf=requestAnimationFrame(loop);
+}
+function stopLoop(){if(raf)cancelAnimationFrame(raf);raf=0;last=0;}
+function render(){draw();}
+function togglePause(){
+ if(game.mode==="play"){game.mode="paused";stopLoop();showOverlay("paused");pauseBtn.textContent="Resume";}
+ else if(game.mode==="paused"){game.mode="play";overlay.hidden=true;pauseBtn.textContent="Pause";startLoop();}
+}
+function showOverlay(mode){
+ game.mode=mode;
+ ovBtns.textContent="";
+ const add=(label,fn,primary)=>{const b=document.createElement("button");b.textContent=label;if(primary)b.className="primary";b.addEventListener("click",fn);ovBtns.appendChild(b);return b;};
+ if(mode==="title"){
+  ovTitle.textContent="Nighttail: The Hollow Crown";
+  ovText.textContent="Mira is held in the keep. Blade, dart and dash through three wings, steal a guard's weapon, and break the Bell Warden.";
+  add(save?"Continue":"Begin Watch",()=>launch(save?save.area:0),true);
+  if(save)add("Restart from the causeway",()=>{save=null;try{localStorage.removeItem(KEY)}catch(e){}launch(0);});
+ }else if(mode==="paused"){
+  ovTitle.textContent="Paused";
+  ovText.textContent="Take a breath. Rook is holding position.";
+  add("Resume",togglePause,true);
+  add("Restart this wing",()=>launch(game.area));
+  add("Abandon to title",()=>{stopLoop();showOverlay("title");});
+ }else if(mode==="dead"){
+  ovTitle.textContent="Rook falls";
+  ovText.textContent="The vigil holds. "+game.deaths+" attempt"+(game.deaths===1?"":"s")+" so far — Rook returns at the last checkpoint.";
+  add("Rise again",()=>launch(game.area),true);
+  add("Back to title",()=>showOverlay("title"));
+ }else if(mode==="won"){
+  ovTitle.textContent="The Hollow Crown is broken";
+  ovText.textContent="Mira walks free. Attempts: "+game.deaths+". Time: "+Math.floor(game.elapsed)+"s.";
+  add("Run the keep again",()=>launch(0),true);
+  add("Back to title",()=>showOverlay("title"));
+ }
+ overlay.hidden=false;
+ if(mode==="dead")ovBtns.firstChild&&ovBtns.firstChild.focus();
+}
+
+const KEYMAP={ArrowLeft:"left",a:"left",A:"left",ArrowRight:"right",d:"right",D:"right"," ":"jump",Spacebar:"jump",ArrowUp:"jump",w:"jump",W:"jump",j:"blade",J:"blade",x:"blade",X:"blade",k:"dart",K:"dart",z:"dart",Z:"dart",l:"steal",L:"steal",c:"steal",C:"steal",Shift:"dash",Escape:"pause",p:"pause",P:"pause"};
+function setKey(k,down){
+ if(!k)return;
+ if(down&&!held.has(k))pressed.add(k);
+ if(k==="pause"){if(down)togglePause();return;}
+ if(down)held.add(k);else held.delete(k);
+ if(k==="jump"||k==="dash"||k==="left"||k==="right"){if(reduced)render();}
+}
+window.addEventListener("keydown",e=>{
+ const k=KEYMAP[e.key];
+ if(!k)return;
+ if(k==="jump"||k==="pause")e.preventDefault();
+ if(game.mode==="title"&&k==="jump"){launch(save?save.area:0);return;}
+ if(game.mode==="paused"&&k==="pause"){togglePause();return;}
+ setKey(k,true);
+});
+window.addEventListener("keyup",e=>setKey(KEYMAP[e.key],false));
+window.addEventListener("blur",()=>{held.clear();pressed.clear();if(game.mode==="play"){game.mode="paused";stopLoop();showOverlay("paused");}});
+document.addEventListener("visibilitychange",()=>{loopOff=document.hidden;if(document.hidden)stopLoop();else if(game.mode==="play")startLoop();});
+for(const btn of document.querySelectorAll("#pad button")){
+ const k=btn.dataset.k;
+ const on=e=>{e.preventDefault();if(k==="pause"){togglePause();return;}if(game.mode==="title"){launch(save?save.area:0);return;}setKey(k,true);};
+ const off=e=>{e.preventDefault();if(k!=="pause")setKey(k,false);};
+ btn.addEventListener("pointerdown",on);
+ btn.addEventListener("pointerup",off);
+ btn.addEventListener("pointercancel",off);
+ btn.addEventListener("pointerleave",off);
+ btn.addEventListener("keydown",e=>{if(e.key===" "||e.key==="Enter")on(e);});
+}
+pauseBtn.addEventListener("click",togglePause);
+document.querySelector(".stage").addEventListener("pointerdown",()=>{if(game.mode==="title")launch(save?save.area:0);});
+
+if(!storageOK)say("This browser blocks saving, so progress is kept only for this session.",420);
+buildArea(save?save.area:0);
+player.x=level.start;player.y=FLOOR-player.h;
+showOverlay("title");
+render();
