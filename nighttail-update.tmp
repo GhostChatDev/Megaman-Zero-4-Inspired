@@ -1,0 +1,79 @@
+);
+}
+const keys={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Space:'jump',KeyJ:'slash',KeyK:'shoot',KeyL:'steal',ShiftLeft:'dash',ShiftRight:'dash'};
+addEventListener('keydown',e=>{
+ if(e.code==='Escape'){if(mode==='play'||mode==='pause'){e.preventDefault();pause()}return}
+ const action=keys[e.code];
+ if(!action||mode!=='play')return;
+ e.preventDefault();if(!held.has(action))pressed.add(action);held.add(action);
+});
+addEventListener('keyup',e=>{const action=keys[e.code];if(action)held.delete(action)});
+addEventListener('blur',()=>{held.clear();pressed.clear();if(mode==='play')pause()});
+$('pauseButton').addEventListener('click',pause);
+for(const b of document.querySelectorAll('[data-control]')){
+ const action=b.dataset.control;
+ b.addEventListener('pointerdown',e=>{
+  if(mode!=='play')return;
+  e.preventDefault();b.setPointerCapture(e.pointerId);
+  if(!held.has(action))pressed.add(action);held.add(action);
+ });
+ const release=()=>held.delete(action);
+ b.addEventListener('pointerup',release);b.addEventListener('pointercancel',release);
+ b.addEventListener('lostpointercapture',release);
+}
+function update(){
+ if(mode!=='play'||!p)return;
+ tick++;elapsed+=1/60;if(messageTime>0)messageTime--;
+ for(const k of ['inv','dash','dashCD','blade','bladeCD','shotCD','jumpBuffer','coyote'])if(p[k]>0)p[k]--;
+ if(pressed.has('jump'))p.jumpBuffer=8;
+ if(p.ground)p.coyote=7;
+ if(p.jumpBuffer&&p.coyote){p.vy=-13;p.ground=false;p.jumpBuffer=0;p.coyote=0}
+ const move=Number(held.has('right'))-Number(held.has('left'));
+ if(move)p.face=move;
+ if(pressed.has('dash')&&!p.dashCD){p.dash=12;p.dashCD=45}
+ p.vx=p.dash?p.face*9:move*4.4;
+ if(pressed.has('slash')&&!p.bladeCD){
+  p.blade=10;p.bladeCD=20;
+  const blade={x:p.face>0?p.x+p.w:p.x-46,y:p.y+5,w:46,h:35};
+  for(const e of enemies)if(overlap(blade,e))damage(e,2);
+ }
+ if(pressed.has('shoot')&&!p.shotCD){
+  const boosted=p.ammo>0;fire(p.face>0?p.x+p.w:p.x-16,p.y+16,p.face*10,0,false,boosted?2:1);
+  if(boosted)p.ammo--;p.shotCD=14;
+ }
+ if(pressed.has('steal')){
+  const target=enemies.find(e=>!e.boss&&e.hp>0&&e.hp<=2&&Math.abs((e.x+e.w/2)-(p.x+p.w/2))<72&&Math.abs(e.y-p.y)<55);
+  if(target){target.hp=0;p.ammo=8;burst(target.x+16,target.y+20);say('Weapon stolen: eight stronger darts.',180)}
+  else say('Weaken a guard to 2 health and move close to steal.',150);
+ }
+ const oldBottom=p.y+p.h;
+ p.vy=Math.min(13,p.vy+.6);p.x=Math.max(0,Math.min(LEVEL-p.w,p.x+p.vx));p.y+=p.vy;p.ground=false;
+ for(const floor of platforms()){
+  if(p.vy>=0&&oldBottom<=floor.y&&p.y+p.h>=floor.y&&p.x+p.w>floor.x&&p.x<floor.x+floor.w){
+   p.y=floor.y-p.h;p.vy=0;p.ground=true;break;
+  }
+ }
+ if(p.y>H+80){die();return}
+ for(const e of enemies){
+  if(e.hp<=0)continue;
+  if(e.hit>0)e.hit--;
+  if(e.boss&&e.hp<=e.max/2)e.phase=1;
+  const dx=p.x-e.x;e.dir=dx>=0?1:-1;
+  if(e.attack>0){
+   e.attack--;
+   if(e.attack===0){
+    if(e.boss){
+     fire(e.x+e.w/2,e.y+30,e.dir*(e.phase?7:5),0,true);
+     if(e.phase){fire(e.x+e.w/2,e.y+24,e.dir*5,-2,true);fire(e.x+e.w/2,e.y+36,e.dir*5,2,true)}
+    }else if(Math.abs(dx)<62&&Math.abs(p.y-e.y)<55)hurt(1,e.x);
+    e.cd=e.boss?(e.phase?55:90):75;
+   }
+  }else if(e.cd>0)e.cd--;
+  else if(Math.abs(dx)<(e.boss?620:135))e.attack=e.boss?40:30;
+  if(!e.attack&&Math.abs(dx)>(e.boss?110:40)&&Math.abs(dx)<450){
+   const next=e.x+e.dir*(e.boss?1.1:1.2);
+   if(e.boss||(next>=660&&next+e.w<=LEVEL)||(next>=0&&next+e.w<=540))e.x=next;
+  }
+  if(overlap(p,e))hurt(1,e.x);
+  if(mode!=='play')return;
+ }
