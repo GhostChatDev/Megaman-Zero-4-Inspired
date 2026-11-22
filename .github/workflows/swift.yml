@@ -21,6 +21,62 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/game-check" playwright@1
           "$RUNNER_TEMP/game-check/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test Nighttail page
+        env:
+          NODE_PATH: ${{ runner.temp }}/game-check/node_modules
+        run: |
+          mkdir -p test-results
+          python3 -m http.server 8081 --bind 127.0.0.1 > /tmp/nighttail-server.log 2>&1 &
+          node <<'JS'
+          const { chromium } = require('playwright');
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const html = fs.readFileSync('nighttail.html', 'utf8');
+          const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+          assert(scripts.length > 0, 'Nighttail script exists');
+          scripts.forEach((s, i) => new vm.Script(s[1], { filename: `nighttail-${i}.js` }));
+          (async () => {
+            const browser = await chromium.launch();
+            for (const view of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'phone', width: 390, height: 844 }]) {
+              const errors = [];
+              const page = await browser.newPage({ viewport: { width: view.width, height: view.height } });
+              page.on('pageerror', error => errors.push(error.message));
+              await page.goto('http://127.0.0.1:8081/nighttail.html', { waitUntil: 'load' });
+              await page.waitForSelector('canvas#game');
+              assert(await page.locator('canvas#game').isVisible(), `Nighttail canvas visible (${view.name})`);
+              assert.equal(await page.evaluate(() => game.mode), 'title', `Nighttail starts on the title screen (${view.name})`);
+              await page.keyboard.press('Space');
+              await page.waitForTimeout(120);
+              assert.equal(await page.evaluate(() => game.mode), 'play', `Space starts the run (${view.name})`);
+              const before = await page.evaluate(() => player.x);
+              await page.keyboard.down('ArrowRight');
+              await page.waitForTimeout(400);
+              await page.keyboard.up('ArrowRight');
+              const moved = await page.evaluate(() => player.x);
+              assert(moved > before, `ArrowRight moves Nighttail (${view.name})`);
+              for (const key of ['j', 'k', 'l', 'Shift', 'Space']) {
+                await page.keyboard.press(key);
+                await page.waitForTimeout(90);
+              }
+              await page.waitForTimeout(200);
+              const state = await page.evaluate(() => ({
+                finite: Number.isFinite(player.x) && Number.isFinite(player.y),
+                hp: player.hp, area: game.area, areas: AREAS.length,
+                over: document.documentElement.scrollWidth - window.innerWidth
+              }));
+              assert(state.finite, `player position stays finite (${view.name})`);
+              assert(state.hp >= 0 && Number.isFinite(state.hp), `player health stays a real number (${view.name})`);
+              assert(state.areas >= 3, `all three areas exist (${view.name})`);
+              assert.equal(state.over <= 2, true, `no sideways scrolling (${view.name}), overflow ${state.over}px`);
+              await page.screenshot({ path: `test-results/nighttail-${view.name}.png` });
+              assert.deepEqual(errors, [], `no uncaught errors on nighttail.html (${view.name})`);
+              await page.close();
+            }
+            await browser.close();
+            console.log('nighttail.html: clean at desktop and phone width');
+          })().catch(e => { console.error('FAIL: ' + e.message); process.exit(1); });
+          JS
       - name: Test web game
         env:
           NODE_PATH: ${{ runner.temp }}/game-check/node_modules
