@@ -121,7 +121,7 @@ function persist(){
   save={version:1,area:game.area,deaths:game.deaths};
  }catch(e){storageOK=false}
 }
-function launch(i){
+function launch(i,fromDeath){
  game.area=Math.max(0,Math.min(AREAS.length-1,i|0));buildArea(game.area);
  if(!fromDeath||!game.cp||game.cp.area!==game.area)game.cp=null;
  player.x=game.cp?game.cp.x:level.start;player.y=FLOOR-player.h;player.vx=0;player.vy=0;player.hp=player.maxHp;
