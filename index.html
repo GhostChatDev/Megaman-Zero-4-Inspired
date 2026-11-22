@@ -361,6 +361,7 @@ function syncPause(){pauseBtn.style.display=(game.mode==="play"||game.mode==="pa
 function togglePause(){
  if(game.mode==="play"){game.mode="paused";stopLoop();showOverlay("paused");pauseBtn.textContent="Resume";}
  else if(game.mode==="paused"){game.mode="play";overlay.hidden=true;pauseBtn.textContent="Pause";startLoop();}
+ else{noticeEl.textContent="Nothing to pause yet: start the run first.";}
  syncPause();
 }
 function showOverlay(mode){
