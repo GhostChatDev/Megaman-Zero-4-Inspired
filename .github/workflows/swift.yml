@@ -56,10 +56,38 @@ jobs:
               const moved = await page.evaluate(() => player.x);
               assert(moved > before, `ArrowRight moves Nighttail (${view.name})`);
               for (const key of ['j', 'k', 'l', 'Shift', 'Space']) {
-                await page.keyboard.press(key);
-                await page.waitForTimeout(90);
+                await page.keyboard.down(key);
+                await page.keyboard.up(key);
+                await page.waitForTimeout(140);
               }
               await page.waitForTimeout(200);
+              // Every on-screen control a phone player uses must react: pressing it must not throw,
+              // and Move right / Jump must change the game (player moves, or leaves the ground).
+              const pad = await page.$$('#pad button');
+              assert(pad.length >= 6, `the on-screen pad has its buttons (${view.name}), found ${pad.length}`);
+              for (const btn of pad) {
+                const label = await btn.getAttribute('aria-label');
+                await btn.dispatchEvent('pointerdown');
+                await page.waitForTimeout(90);
+                await btn.dispatchEvent('pointerup');
+                await page.waitForTimeout(60);
+                assert.deepEqual(errors, [], `pressing '${label}' does not throw (${view.name})`);
+              }
+              if (await page.evaluate(() => game.mode) !== 'play') {
+                await page.keyboard.down('Space'); await page.keyboard.up('Space');
+                await page.waitForTimeout(160);
+              }
+              const padBefore = await page.evaluate(() => ({ x: player.x, y: player.y }));
+              await (await page.$('#pad button[data-k="right"]')).dispatchEvent('pointerdown');
+              await page.waitForTimeout(400);
+              await (await page.$('#pad button[data-k="right"]')).dispatchEvent('pointerup');
+              await (await page.$('#pad button[data-k="jump"]')).dispatchEvent('pointerdown');
+              await page.waitForTimeout(200);
+              await (await page.$('#pad button[data-k="jump"]')).dispatchEvent('pointerup');
+              await page.waitForTimeout(200);
+              const padAfter = await page.evaluate(() => ({ x: player.x, y: player.y }));
+              assert(padAfter.x > padBefore.x || padAfter.y !== padBefore.y,
+                `the on-screen Move right and Jump buttons change the game (${view.name})`);
               const state = await page.evaluate(() => ({
                 finite: Number.isFinite(player.x) && Number.isFinite(player.y),
                 hp: player.hp, area: game.area, areas: AREAS.length,
