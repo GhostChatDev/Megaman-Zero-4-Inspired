@@ -32,7 +32,7 @@ jobs:
           const fs = require('node:fs');
           const vm = require('node:vm');
           const assert = require('node:assert/strict');
-          const html = fs.readFileSync('index.html', 'utf8');
+          const html = fs.readFileSync('legacy.html', 'utf8');
           const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
           assert(scripts.length > 0, 'Game script exists');
           scripts.forEach((s, i) => new vm.Script(s[1], { filename: `game-${i}.js` }));
@@ -42,7 +42,7 @@ jobs:
             const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
             page.on('pageerror', error => errors.push(error.message));
             try {
-              await page.goto('http://127.0.0.1:8080', { waitUntil: 'networkidle' });
+              await page.goto('http://127.0.0.1:8080/legacy.html', { waitUntil: 'networkidle' });
               await page.waitForSelector('#overlay button');
               assert(await page.locator('canvas#game').isVisible(), 'Game canvas visible');
               assert(await page.locator('#panel canvas[data-portrait]').isVisible(), 'Title shows the hero portrait');
