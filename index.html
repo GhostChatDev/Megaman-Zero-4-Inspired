@@ -159,7 +159,7 @@ const stages=[
 ];
 const storyStart=['ROOK // NIGHTTAIL','The road to Blackthorn ends at a fortress swallowed by shadow. Somewhere inside waits the message Rook was sent to deliver.','A courier with a blade, ranged shots and a quick dash, Rook slips past the gate and into the dark.','Watch for the guardian’s attacks, find the checkpoints, and keep moving.'];
 const game={ult:0,flash:0,ultLock:false,hurt:0,state:'menu',stage:1,cam:0,time:0,total:0,shake:0,freeze:0,boss:null,checkpoint:40,retries:2,kills:0,clearing:false,checkpointNotice:0};let player=null,level=null,enemies=[],shots=[],loot=[],effects=[],floating=[],tick=0;
-const keys={},touches=new Map();let pad={},input={},previous={},padID='',padNav={};
+const keys={},touches=new Map();let pad={},input={},previous={},padID='',padNav={},lastMenuPoll=0;
 const keymap={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],jump:['Space','KeyZ','ArrowUp'],slash:['KeyX','KeyJ'],dash:['ShiftLeft','ShiftRight','KeyC'],shot:['KeyV','KeyK'],skill:['KeyQ'],ult:['KeyE'],pause:['Escape','KeyP'],shop:['KeyB']};
 // Movement joystick state: x/y are -1..1; DEAD is the dead zone as a fraction of knob travel.
 const stick={id:null,x:0,y:0,cx:0,cy:0,r:50},DEAD=.24,stickZone=$('stickZone'),stickBase=$('stick'),stickKnob=$('knob');
@@ -614,7 +614,7 @@ function frame(now){const elapsed=lastFrame?Math.min((now-lastFrame)/1000,.1):0;
  // Adaptive quality: if the device cannot hold ~40 fps, render at a lower internal resolution.
  if(game.state==='play'){slowFrames=elapsed>1/40?slowFrames+1:Math.max(0,slowFrames-2);if(slowFrames>90&&maxScale>1){maxScale-=.5;slowFrames=0}}
  // Fixed 120 Hz simulation prevents refresh-rate-dependent movement and collision tunneling.
- let steps=0;while(accumulator>=1/120&&steps<12){pollInput();update(1/120);game.shake=Math.max(0,game.shake-25/120);game.flash=Math.max(0,game.flash-1/120);game.hurt=Math.max(0,game.hurt-1.4/120);accumulator-=1/120;tick++;steps++}
+ let steps=0;while(accumulator>=1/120&&steps<12){if(game.state==='play'||performance.now()-lastMenuPoll>=100){pollInput();lastMenuPoll=performance.now()}update(1/120);game.shake=Math.max(0,game.shake-25/120);game.flash=Math.max(0,game.flash-1/120);game.hurt=Math.max(0,game.hurt-1.4/120);accumulator-=1/120;tick++;steps++}
  audio.update();render();syncButtons();requestAnimationFrame(frame);
 }
 addEventListener('pagehide',()=>{resetInput();persist()});addEventListener('resize',updateControls);
