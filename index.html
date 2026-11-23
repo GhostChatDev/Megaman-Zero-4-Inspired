@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#151629"><meta name="apple-mobile-web-app-capable" content="yes">
-<title>Banana Signal · Dawn Caravan</title>
+<title>Nighttail · The Blackthorn Gate</title>
 <style>
 :root{color-scheme:dark;--cyan:#6ff2ff;--gold:#ffe14d;--ink:#120c30;--edge:#7d4dff}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -108,7 +108,7 @@ select{max-width:185px;background:#0b1220;color:#fff;padding:8px;border-radius:8
 </style>
 </head>
 <body>
-<div id="shell"><div id="view"><canvas id="game" width="480" height="320" aria-label="Banana Signal action platformer"></canvas><div id="top" hidden><button id="shopButton" aria-label="Workshop: upgrades, skills and heroes">SHOP</button><button id="pauseButton" aria-label="Pause game">Ⅱ</button></div></div></div>
+<div id="shell"><div id="view"><canvas id="game" width="480" height="320" aria-label="Nighttail action platformer"></canvas><div id="top" hidden><button id="shopButton" aria-label="Workshop: upgrades, skills and heroes">SHOP</button><button id="pauseButton" aria-label="Pause game">Ⅱ</button></div></div></div>
 <div id="touch" hidden aria-label="Touch game controls"><div id="stickZone" aria-label="Movement joystick"><div id="stick"><i style="--a:0deg"></i><i style="--a:90deg"></i><i style="--a:180deg"></i><i style="--a:270deg"></i><div id="knob"></div></div></div><div id="combat"><button data-action="skill" aria-label="Use equipped skill">SKILL</button><button data-action="ult" aria-label="Ultimate">ULT</button><button data-action="shot" aria-label="Bolt: hold to charge">BOLT</button><button data-action="dash" aria-label="Dash">DASH</button><button data-action="slash" aria-label="Slash">SLASH</button><button data-action="jump" aria-label="Jump">JUMP</button></div></div>
 <div id="overlay"><main id="panel"></main></div><div id="notice" role="status" aria-live="polite"></div>
 <script>
@@ -123,7 +123,7 @@ const defaults=()=>({version:2,bananas:0,upgrades:{blade:0,bolt:0,armor:0,energy
 function cleanSave(raw){const d=defaults();if(!raw||raw.version!==2)return d;for(const k of ['bananas','kills','deaths','time'])d[k]=Number.isFinite(raw[k])?clamp(Math.floor(raw[k]),0,1e9):0;d.unlocked=clamp(Math.floor(Number(raw.unlocked)||1),1,9);d.stage=clamp(Math.floor(Number(raw.stage)||1),1,d.unlocked);d.cleared=Array.isArray(raw.cleared)?[...new Set(raw.cleared.filter(n=>Number.isInteger(n)&&n>=1&&n<=9))]:[];for(const k in d.upgrades)d.upgrades[k]=clamp(Math.floor(Number(raw.upgrades?.[k])||0),0,5);for(let n=1;n<=9;n++)if(Number.isFinite(raw.best?.[n])&&raw.best[n]>0)d.best[n]=raw.best[n];d.won=raw.won===true;for(const kind of ['skill','hero']){const list=catalog(kind),owned=kind+(kind==='hero'?'es':'s');if(Array.isArray(raw[owned]))for(const k of raw[owned])if(list.some(i=>i.key===k)&&!d[owned].includes(k))d[owned].push(k);if(d[owned].includes(raw[kind]))d[kind]=raw[kind]}return d}
 // Playable heroes: bought with bananas, each with different movement/combat numbers and its own ultimate.
 const heroes=[
-{key:'kip',name:'Kip',cost:0,ult:'dawn',ultName:'DAWN BREAKER',desc:'Balanced salvage-runner. Double jump and one air dash.',ultDesc:'Dawn Breaker: clears every enemy shot and hits everything on screen.'},
+{key:'kip',name:'Rook',cost:0,ult:'dawn',ultName:'DAWN BREAKER',desc:'A nimble courier. Double jump and one air dash.',ultDesc:'Dawn Breaker: clears every enemy shot and hits everything on screen.'},
 {key:'bat',name:'Bat Monkey',cost:350,ult:'swarm',ultName:'NIGHT SWARM',hp:.8,speed:1.14,jumps:3,glide:true,desc:'Triple jump, glides while JUMP is held in the air, runs 14% faster. 20% less armor.',ultDesc:'Night Swarm: eight homing sonic bats.'},
 {key:'hood',name:'Hood Monkey',cost:350,ult:'storm',ultName:'SHADOW STORM',blade:1.3,bolt:.75,dashLen:1.45,dashCost:12,desc:'Saber hits 30% harder; dash goes 45% farther for less energy. Bolts are 25% weaker.',ultDesc:'Shadow Storm: untouchable teleporting blade flurry.'}];
 // Active skills: one is equipped at a time (SKILL button / Q / LB). Each costs energy and has a cooldown.
@@ -147,7 +147,7 @@ function persist(){return writeJSON(SEED,save)}
 function flushSave(){return persist()}
 let noticeTimer;function notify(text){$('notice').textContent=text;$('notice').style.opacity=1;clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>$('notice').style.opacity=0,2600)}
 const stages=[
-{name:'PRISM HOLLOW',boss:'CARAPACE-IX',kind:'beetle',color:'#a776ff',sky:'#1b1b40',pattern:'fan',text:'The caravan seed-vault is failing. Kip must reopen eight climate relays before the last living orchard freezes. A beetle siege engine nests in the crystal mine.'},
+{name:'BLACKTHORN GATE',boss:'CARAPACE-IX',kind:'beetle',color:'#bca4d6',sky:'#171524',pattern:'fan',text:'Rook approaches the Blackthorn fortress. Beyond the broken gate, a steel guardian waits among the old stones.'},
 {name:'SCRAP CANOPY',boss:'IRON KONG',kind:'gorilla',color:'#77c7a3',sky:'#0c2830',pattern:'slam',text:'Steel vines feed an abandoned salvage garden. Iron Kong hoards its soil filters. Mechanic Nori needs those filters, not another trophy.'},
 {name:'TIDAL CIRCUIT',boss:'MANTA COIL',kind:'drone',color:'#66d9f2',sky:'#102945',pattern:'wave',text:'The pumps are drowning the lower decks. A floating sentinel mistakes the caravan for a flood. Shut its coils down without destroying the freshwater reserve.'},
 {name:'EMBER FOUNDRY',boss:'CINDER MANTIS',kind:'wasp',color:'#ff975d',sky:'#351c30',pattern:'dash',text:'Seed sterilizers have become furnaces. Cinder Mantis obeys orders from Warden Oryx: no harvest outside the citadel. Take back the heat exchanger.'},
@@ -157,7 +157,7 @@ const stages=[
 {name:'VERDANT SPIRE',boss:'ORYX PRIME',kind:'gorilla',color:'#83edcb',sky:'#152b3b',pattern:'all',text:'Eight relays, one last lock. Oryx Prime would rather shatter the weather engine than share a season. Nori begins the transfer. Hold the spire.'},
 {name:'DAWN ENGINE',boss:'THE CLOSED SUN',kind:'drone',color:'#ffcd83',sky:'#31203e',pattern:'all',text:'Oryx is defeated, but the engine has learned his fear. It is sealing the orchard permanently. Kip enters the core to teach it a different ending.'}
 ];
-const storyStart=['KIP // DAWN CARAVAN','A hundred traveling families carry the last seeds of their old home. Their destination is a living orchard behind the citadel walls. Warden Oryx has sealed it.','Kip, a salvage-runner with a patched teal suit and a prism saber, volunteers to reopen eight climate relays. Nori will keep the caravan moving.','Every guardian controls something the families need: clean water, warmth, soil, wind. The job is not revenge. It is a harvest.'];
+const storyStart=['ROOK // NIGHTTAIL','The road to Blackthorn ends at a fortress swallowed by shadow. Somewhere inside waits the message Rook was sent to deliver.','A courier with a blade, ranged shots and a quick dash, Rook slips past the gate and into the dark.','Watch for the guardian’s attacks, find the checkpoints, and keep moving.'];
 const game={ult:0,flash:0,ultLock:false,hurt:0,state:'menu',stage:1,cam:0,time:0,total:0,shake:0,freeze:0,boss:null,checkpoint:40,retries:2,kills:0,clearing:false,checkpointNotice:0};let player=null,level=null,enemies=[],shots=[],loot=[],effects=[],floating=[],tick=0;
 const keys={},touches=new Map();let pad={},input={},previous={},padID='',padNav={};
 const keymap={left:['ArrowLeft','KeyA'],right:['ArrowRight','KeyD'],jump:['Space','KeyZ','ArrowUp'],slash:['KeyX','KeyJ'],dash:['ShiftLeft','ShiftRight','KeyC'],shot:['KeyV','KeyK'],skill:['KeyQ'],ult:['KeyE'],pause:['Escape','KeyP'],shop:['KeyB']};
@@ -356,7 +356,7 @@ function setPanel(title,body,actions,state='menu',layout='actions'){game.state=s
 function hideOverlay(){$('overlay').hidden=true;$('top').hidden=false;updateControls()}function updateControls(){$('touch').hidden=game.state!=='play'||settings.touch==='off'||(settings.touch==='auto'&&!matchMedia('(pointer:coarse)').matches&&navigator.maxTouchPoints<1)}
 const loadoutChips=()=>'<div class="chips"><span class="chip">🍌 <b>'+save.bananas+'</b></span><span class="chip">RELAYS <b>'+save.cleared.filter(n=>n<=8).length+'/8</b></span><span class="chip">HERO <b>'+hero().name.toUpperCase()+'</b></span><span class="chip">SKILL <b>'+activeSkill().name.toUpperCase()+'</b></span></div>';
 function menu(){persist();level=null;player=null;game.boss=null;game.stage=save.stage;
- setPanel('','<div class="titleWrap"><div><div class="muted">AN ORIGINAL CARTOON ACTION PLATFORMER</div><h1>BANANA<br>SIGNAL</h1><h3>DAWN CARAVAN</h3><p class="tagline">A monkey. A prism saber. Eight stolen seasons.</p></div><canvas class="portrait" width="288" height="288" data-portrait="'+save.hero+'"></canvas></div>'+loadoutChips()+'<p id="controller">Touch, keyboard and standard gamepads supported. Pair a controller in device settings, then press a button here.</p>',
+ setPanel('','<div class="titleWrap"><div><div class="muted">AN ORIGINAL ACTION PLATFORMER</div><h1>NIGHTTAIL</h1><h3>THE BLACKTHORN GATE</h3><p class="tagline">A courier. A blade. A fortress in shadow.</p></div><canvas class="portrait" width="288" height="288" data-portrait="'+save.hero+'"></canvas></div>'+loadoutChips()+'<p id="controller">Touch, keyboard and standard gamepads supported. Pair a controller in device settings, then press a button here.</p>',
  [{label:(save.cleared.length||save.stage>1?'CONTINUE':'PLAY')+' · RELAY '+save.stage,kind:'primary big',run:()=>intro(save.stage)},{label:'STAGE SELECT',run:stageSelect},{label:'WORKSHOP',kind:'gold',run:()=>shop('menu')},{label:'HEROES',kind:'gold',run:()=>shop('menu',0,'heroes')},{label:'CONTROLS',kind:'ghost',run:()=>help('menu')},{label:'SETTINGS',kind:'ghost',run:()=>settingsMenu('menu')},{label:'NEW CAMPAIGN',kind:'ghost',run:newCampaign}],'menu','menuGrid');
  if(!storageOK)notify('Storage unavailable. Progress lasts only while this page stays open.')}
 function newCampaign(){setPanel('NEW CAMPAIGN','<p>Start from relay 1 with zero bananas and upgrades?</p><p class="muted">This replaces the campaign saved in this browser. Settings are kept.</p>',[{label:'BEGIN',kind:'primary',run:()=>{save=defaults();persist();story(storyStart,()=>intro(1))}},{label:'CANCEL',back:true,run:menu}])}
@@ -538,6 +538,12 @@ function tile(layer,offset){const w=layer.logical,x=-((offset%w)+w)%w;ctx.drawIm
 function background(){
  const n=game.stage||1,T=THEMES[n-1],cam=level?game.cam:tick*.12,t=tick/120;if(layers.key!==n+'@'+SCALE)buildLayers(n);
  ctx.drawImage(layers.sky,0,0,W,H);tile(layers.far,cam*.1);tile(layers.mid,cam*.35);
+ if(n===1){
+  // Silhouetted fortress walls sit behind the playable ground and enemies.
+  ctx.save();ctx.fillStyle='#171524bb';
+  for(let i=-1;i<7;i++){const x=i*100-((cam*.23)%100);ctx.fillRect(x,134,78,146);ctx.fillRect(x+8,112,15,30);ctx.fillRect(x+55,112,15,30);ctx.fillRect(x+27,92,24,50);ctx.fillStyle='#d2b78555';ctx.fillRect(x+34,151,8,19);ctx.fillStyle='#171524bb';}
+  ctx.restore();
+ }
  for(let i=0;i<20;i++){let x,y,a=ctx.globalAlpha;
   if(T.motes==='ember'){x=((i*61+Math.sin(t+i)*18-cam*.5)%W+W)%W;y=H-((t*34+i*47)%H);ctx.globalAlpha=.75*(y/H);circ(x,y,1+i%2*.6,i%3?'#ff9a4d':'#ffe08a',0)}
   else if(T.motes==='rain'){x=((i*53-t*110-cam*.6)%W+W)%W;y=(t*430+i*71)%H;ctx.globalAlpha=.3;ctx.strokeStyle='#cfe8ff';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-3,y+9);ctx.stroke()}
