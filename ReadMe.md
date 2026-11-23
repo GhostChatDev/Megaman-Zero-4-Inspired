@@ -10,13 +10,13 @@
 
 - **Opening Stage & Visuals:** Opens as **NIGHTTAIL — THE BLACKTHORN GATE** (`index.html:5`, `index.html:150`) with a moonlit gothic fortress backdrop, battlement silhouettes, iron gate archway, warm torchlight, and Rook's dark cloak and cyan blade.
 - **Controls (Press-Responsive):**
-  - **Keyboard (`index.html:382`):** `A`/`D` or Left/Right to move, `W`/`Space`/`Z` to jump & double-jump, `J`/`X` to slash, `K`/`C` to hold/release ranged bolt, `L`/`Shift` to dash, `U`/`E` for equipped skill, `I`/`Q` for ultimate, `P`/`Esc` to pause.
+  - **Keyboard (`index.html:163`, `index.html:382`):** `A`/`D` or Left/Right to move, `Up`/`Space`/`Z` to jump & double-jump, `J`/`X` to slash, `K`/`V` to hold/release ranged bolt, `C`/`Shift` to dash, `Q` for equipped skill, `E` for ultimate, `B` for workshop, `P`/`Esc` to pause.
   - **Touch (`index.html:112`):** Lower-left virtual joystick (`#stickZone`) and lower-right action cluster (`JUMP`, `SLASH`, `DASH`, `BOLT`, `SKILL`, `ULT`).
-  - **Gamepad:** Standard mapping supported.
+  - **Gamepad (`index.html:173`):** Standard mapping supported.
 - **Game Feel & Accessibility:**
-  - Amber hazard and boss wind-up telegraphs (`index.html:291`, `index.html:364`) before enemy attacks.
-  - Automatic pause on window/tab blur (`index.html:405`) with clamped frame delta (`dt`) so resuming never causes a catch-up jump.
-  - **Reduced Motion** toggle and **Difficulty** selector (`Story`, `Arcade`, `Master`) in **Settings** (`index.html:381`), persisted in `localStorage` (`banana_signal_settings_v2`, `index.html:119`).
+  - Amber hazard and boss wind-up telegraphs (`index.html:364`) before enemy attacks.
+  - Automatic pause on window/tab blur (`index.html:180`) with clamped frame delta (`index.html:612`) so resuming never causes a catch-up jump.
+  - **Screen Shake / Reduced Motion** toggle and **Difficulty** selector (`Story`, `Arcade`, `Master`) in **Settings** (`index.html:381`), persisted in `localStorage` (`banana_signal_settings_v2`, `index.html:119`).
   - Campaign progress, stage unlocks, currency, heroes, and workshop upgrades persist in `localStorage` (`banana_signal_v2`, `index.html:119`, `index.html:145`).
 
 ---
