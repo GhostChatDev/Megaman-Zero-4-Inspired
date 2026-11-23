@@ -1,4 +1,27 @@
-# Ruin Core — Five-Step Game Build Plan
+# Nighttail: The Blackthorn Gate — Web Game & Design Plans
+
+> **Current playable web build (`index.html`):** **Nighttail · The Blackthorn Gate**, a single-file HTML5 Canvas 2D action-platformer starring **Rook**, a monkey courier fighting past the Blackthorn Gate guardian (**CARAPACE-IX**) and across an 8-stage relay campaign + final stage.
+>
+> **Companion design docs in this repository:**
+> - [`nighttail.md`](nighttail.md) — Nighttail gothic action-platformer direction, palette, Act I stages, combat kit, and boss encounters.
+> - Below: original *Ruin Core* iOS SpriteKit specification kept for reference.
+
+## Playable Web Milestone (`index.html`)
+
+- **Opening Stage & Visuals:** Opens as **NIGHTTAIL — THE BLACKTHORN GATE** (`index.html:5`, `index.html:150`) with a moonlit gothic fortress backdrop, battlement silhouettes, iron gate archway, warm torchlight, and Rook's dark cloak and cyan blade.
+- **Controls (Press-Responsive):**
+  - **Keyboard (`index.html:382`):** `A`/`D` or Left/Right to move, `W`/`Space`/`Z` to jump & double-jump, `J`/`X` to slash, `K`/`C` to hold/release ranged bolt, `L`/`Shift` to dash, `U`/`E` for equipped skill, `I`/`Q` for ultimate, `P`/`Esc` to pause.
+  - **Touch (`index.html:112`):** Lower-left virtual joystick (`#stickZone`) and lower-right action cluster (`JUMP`, `SLASH`, `DASH`, `BOLT`, `SKILL`, `ULT`).
+  - **Gamepad:** Standard mapping supported.
+- **Game Feel & Accessibility:**
+  - Amber hazard and boss wind-up telegraphs (`index.html:291`, `index.html:364`) before enemy attacks.
+  - Automatic pause on window/tab blur (`index.html:405`) with clamped frame delta (`dt`) so resuming never causes a catch-up jump.
+  - **Reduced Motion** toggle and **Difficulty** selector (`Story`, `Arcade`, `Master`) in **Settings** (`index.html:381`), persisted in `localStorage` (`banana_signal_settings_v2`, `index.html:119`).
+  - Campaign progress, stage unlocks, currency, heroes, and workshop upgrades persist in `localStorage` (`banana_signal_v2`, `index.html:119`, `index.html:145`).
+
+---
+
+# Ruin Core — Five-Step Game Build Plan (Reference Spec)
 
 > Working title. Build a landscape, single-player action-platformer and tower-defense game inspired by the supplied gameplay reference.
 
@@ -431,3 +454,6 @@ These instructions apply after the Xcode project has been created in Step 1.
 ## 8. Definition of Done
 
 Version one is complete when a clean checkout builds in the documented Xcode environment, a player can finish all ten waves with working combat and defenses, the acceptance checklists pass, all required resources are included legally, and the repository documents its actual tested state.
+
+---
+<img src="https://ghostchat.tech/icons/ghost-code-dev.png" width="20" height="20" alt="" align="top"> Built by [Ghost Code Dev](https://ghostchat.tech)
