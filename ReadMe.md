@@ -8,16 +8,23 @@
 
 ## Playable Web Milestone (`index.html`)
 
+Open `index.html` in a modern browser to play. Saves stay in that browser on the same origin.
+
+Rook, a monkey courier, enters Blackthorn fortress looking for his missing sister Mira.  
+Its bells have stolen the voices of nearby villages, and the Hollow Crown plans to use them at midnight.  
+To free those voices, Rook must silence the fortress itself.  
+Nighttail: The Blackthorn Gate
+
 - **Opening stage:** **NIGHTTAIL — THE BLACKTHORN GATE** opens at Blackthorn fortress, where Rook faces CARAPACE-IX. The current visuals combine a dark fortress backdrop with the existing sci-fi platformer art.
-- **Controls (Press-Responsive):**
-  - **Keyboard (`index.html:163`, `index.html:382`):** `A`/`D` or Left/Right to move, `Up`/`Space`/`Z` to jump & double-jump, `J`/`X` to slash, `K`/`V` to hold/release ranged bolt, `C`/`Shift` to dash, `Q` for equipped skill, `E` for ultimate, `B` for workshop, `P`/`Esc` to pause.
-  - **Touch (`index.html:112`):** Lower-left virtual joystick (`#stickZone`) and lower-right action cluster (`JUMP`, `SLASH`, `DASH`, `BOLT`, `SKILL`, `ULT`).
-  - **Gamepad (`index.html:173`):** Standard mapping supported.
-- **Game Feel & Accessibility:**
-  - Amber hazard and boss wind-up telegraphs (`index.html:364`) before enemy attacks.
-  - Automatic pause on window/tab blur (`index.html:180`) with clamped frame delta (`index.html:612`) so resuming never causes a catch-up jump.
-  - **Screen Shake / Reduced Motion** toggle and **Difficulty** selector (`Story`, `Hard`, `Nightmare`) in **Settings**, persisted in `localStorage` (`banana_signal_settings_v2`).
-  - Campaign progress, stage unlocks, currency, heroes, and workshop upgrades persist in `localStorage` (`banana_signal_v2`, `index.html:119`, `index.html:145`).
+- **Controls:**
+  - **Keyboard:** `A`/`D` or Left/Right to move, `Up`/`Space`/`Z` to jump & double-jump, `J`/`X` to slash, `K`/`V` to hold/release ranged bolt, `C`/`Shift` to dash, `Q` for equipped skill, `E` for ultimate, `B` for workshop, `P`/`Esc` to pause.
+  - **Touch:** Lower-left virtual joystick and lower-right action cluster (`JUMP`, `SLASH`, `DASH`, `BOLT`, `SKILL`, `ULT`).
+  - **Gamepad:** Standard mapping supported.
+- **Game feel & accessibility:**
+  - Enemy and boss attacks use warning indicators.
+  - The game pauses when the window loses focus or the tab is hidden.
+  - Settings include volume, touch controls, screen shake and flashes, and difficulty (`Story`, `Hard`, `Nightmare`). Settings and campaign progress are stored locally in the browser; clearing browser data removes them.
+- **Current scope:** Nine playable stages, three selectable heroes, upgrades, sound effects and music. The attached prompt's ten levels and branching story choices are not yet implemented; the later stages retain sci-fi art alongside the Nighttail story.
 
 ---
 
