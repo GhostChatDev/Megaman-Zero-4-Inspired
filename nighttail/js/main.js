@@ -13,7 +13,7 @@ window.NT = window.NT || {};
     timer: document.getElementById("timer"), pad: document.getElementById("pad"),
     title: document.getElementById("title"), story: document.getElementById("story"),
     pause: document.getElementById("pause"), ending: document.getElementById("ending"),
-    startBtn: document.getElementById("startBtn"), storyBtn: document.getElementById("storyBtn"),
+    startBtn: document.getElementById("startBtn"), storyBtn: document.getElementById("storyBtn") || document.getElementById("playBtn"),
     resumeBtn: document.getElementById("resumeBtn"), restartBtn: document.getElementById("restartBtn"),
     musicBtn: document.getElementById("musicBtn"), quitBtn: document.getElementById("quitBtn"),
     againBtn: document.getElementById("againBtn"), endTitleBtn: document.getElementById("endTitleBtn"),
