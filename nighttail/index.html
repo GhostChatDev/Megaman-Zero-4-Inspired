@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>NIGHTTAIL: The Hollow Crown</title>
+<style>
+  :root{
+    --bg:#0b0a10; --surface:#151320; --edge:#2a2438; --text:#efe9f5; --muted:#9d93b4;
+    --accent:#c9a227; --danger:#d1495b; --ok:#5fbf8a; --gold:#e9d27a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  #stage{position:relative;width:min(100vw,calc(100vh * 16 / 9));height:min(100vh,calc(100vw * 9 / 16))}
+  canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;background:#07060b;touch-action:none}
+  /* HUD */
+  #hud{position:absolute;inset:0;pointer-events:none;font-variant-numeric:tabular-nums;
+    display:flex;justify-content:space-between;align-items:flex-start;padding:2.2% 2.6%;gap:8px}
+  .hud-chip{background:rgba(11,10,16,.72);border:1px solid var(--edge);border-radius:8px;
+    padding:4px 9px;font-size:clamp(11px,1.7vh,15px);line-height:1.25;letter-spacing:.02em}
+  #hearts{display:flex;gap:4px;align-items:center}
+  .heart{width:clamp(12px,1.9vh,18px);height:clamp(12px,1.9vh,18px);background:var(--danger);
+    clip-path:polygon(50% 100%,0 38%,18% 4%,50% 24%,82% 4%,100% 38%)}
+  .heart.off{background:#4a3a44}
+  #areaName{text-transform:uppercase;letter-spacing:.12em;color:var(--gold)}
+  /* Touch pad */
+  #pad{position:absolute;inset:0;pointer-events:none}
+  #pad button{position:absolute;pointer-events:auto;width:15%;min-width:56px;aspect-ratio:1;
+    border-radius:50%;border:1px solid var(--edge);background:rgba(21,19,32,.78);color:var(--text);
+    font-size:clamp(10px,1.6vh,13px);font-weight:600;letter-spacing:.04em;display:flex;
+    align-items:center;justify-content:center;touch-action:none}
+  #pad button:active,#pad button.on{background:rgba(201,162,39,.32);border-color:var(--accent)}
+  #bLeft{left:2.5%;bottom:4%;min-height:44px}
+  #bRight{left:19%;bottom:4%;min-height:44px}
+  #bJump{right:19%;bottom:12%;min-height:44px}
+  #bAtk{right:2.5%;bottom:4%;min-height:44px}
+  #bDash{right:19%;bottom:34%;min-height:44px}
+  /* Screens */
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;padding:6% 8%;gap:12px;
+    background:radial-gradient(120% 90% at 50% 0%,rgba(11,10,16,.55),rgba(7,6,11,.94));backdrop-filter:blur(2px)}
+  .screen[hidden]{display:none}
+  h1{margin:0;font-size:clamp(30px,7.4vh,74px);letter-spacing:.18em;color:var(--gold);
+    text-shadow:0 0 22px rgba(201,162,39,.35)}
+  .sub{margin:0;font-size:clamp(12px,2.2vh,20px);letter-spacing:.34em;color:var(--text);text-transform:uppercase}
+  .story-line{max-width:34em;font-size:clamp(13px,2.1vh,18px);line-height:1.5;color:var(--text);margin:0}
+  .story-line b{color:var(--gold)}
+  .hint{color:var(--muted);font-size:clamp(11px,1.8vh,14px);margin:0}
+  button.primary{cursor:pointer;font:inherit;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:#14111c;background:var(--accent);border:0;border-radius:10px;
+    padding:14px 34px;min-height:48px;min-width:180px;transition:transform .14s ease,filter .14s ease}
+  button.primary:hover{filter:brightness(1.1);transform:translateY(-1px)}
+  button.primary:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+  .keys{margin:0;color:var(--muted);font-size:clamp(10px,1.7vh,13px);line-height:1.7}
+  .keys kbd{background:var(--surface);border:1px solid var(--edge);border-radius:5px;padding:1px 6px;
+    color:var(--text);font-family:inherit}
+  .best{color:var(--muted);font-size:clamp(11px,1.8vh,14px);font-variant-numeric:tabular-nums}
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  button.ghost{cursor:pointer;font:inherit;color:var(--text);background:transparent;border:1px solid var(--edge);
+    border-radius:10px;padding:11px 18px;min-height:44px}
+  button.ghost:hover{border-color:var(--accent);color:var(--gold)}
+  button.ghost:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage">
+  <canvas id="game" width="960" height="540" aria-label="Nighttail: the Hollow Crown — game view"></canvas>
+
+  <div id="hud" hidden>
+    <div class="hud-chip" id="hearts" aria-label="Health"></div>
+    <div class="hud-chip" id="areaName">The Orchard Stair</div>
+    <div class="hud-chip"><span id="emberCount">0</span> embers · <span id="timer">0:00.0</span></div>
+  </div>
+
+  <div id="pad" hidden>
+    <button id="bLeft" aria-label="Run left">&#9664;</button>
+    <button id="bRight" aria-label="Run right">&#9654;</button>
+    <button id="bJump" aria-label="Jump">JUMP</button>
+    <button id="bAtk" aria-label="Sword">CUT</button>
+    <button id="bDash" aria-label="Dash">DASH</button>
+  </div>
+
+  <div id="title" class="screen">
+    <h1>NIGHTTAIL</h1>
+    <p class="sub">The Hollow Crown</p>
+    <p class="hint" id="bestLine">Reach the crown. Break the seal.</p>
+    <button id="startBtn" class="primary" type="button">Start</button>
+    <p class="hint">Click the button, tap it, or press <kbd>Enter</kbd></p>
+    <p class="keys"><kbd>&larr;</kbd><kbd>&rarr;</kbd> run · <kbd>Space</kbd> jump · <kbd>Z</kbd> sword ·
+      <kbd>X</kbd> dash · <kbd>P</kbd> pause · <kbd>M</kbd> music</p>
+  </div>
+
+  <div id="story" class="screen" hidden>
+    <p class="story-line">Kibo Nighttail, youngest climber of the Vineguard, breaks into Ashen Keep to
+      steal back the <b>Hollow Crown</b> that keeps his people's orchard alive.</p>
+    <p class="story-line">The crown is hollow: every hand that holds it eats the warmth of the castle's
+      clockwork heart, and the Keeper who wears it cannot take it off.</p>
+    <p class="story-line">The crown was never stolen — Kibo's own elders gave it up to seal the Keeper's
+      hunger. To save the orchard, he must break the seal himself.</p>
+    <h1>NIGHTTAIL: The Hollow Crown</h1>
+    <p class="hint">Press <kbd>Enter</kbd>, click or tap to begin</p>
+  </div>
+
+  <div id="pause" class="screen" hidden>
+    <h1>PAUSED</h1>
+    <div class="row">
+      <button id="resumeBtn" class="primary" type="button">Resume</button>
+    </div>
+    <div class="row">
+      <button id="restartBtn" class="ghost" type="button">Restart area</button>
+      <button id="musicBtn" class="ghost" type="button">Music: on</button>
+      <button id="quitBtn" class="ghost" type="button">Title</button>
+    </div>
+    <p class="keys"><kbd>&larr;</kbd><kbd>&rarr;</kbd> run · <kbd>Space</kbd> jump / wall-jump ·
+      <kbd>Z</kbd> sword · <kbd>X</kbd> dash · <kbd>P</kbd> pause</p>
+  </div>
+
+  <div id="ending" class="screen" hidden>
+    <h1 id="endingTitle">SEAL BROKEN</h1>
+    <p class="story-line" id="endingText"></p>
+    <p class="best" id="endingTime"></p>
+    <div class="row">
+      <button id="againBtn" class="primary" type="button">Run again</button>
+      <button id="endTitleBtn" class="ghost" type="button">Title</button>
+    </div>
+  </div>
+</div></div>
+
+<script src="nighttail/js/audio.js"></script>
+<script src="nighttail/js/world.js"></script>
+<script src="nighttail/js/entities.js"></script>
+<script src="nighttail/js/player.js"></script>
+<script src="nighttail/js/main.js"></script>
+</body>
+</html>
