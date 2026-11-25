@@ -192,5 +192,73 @@ check(st(env) === "play", "still in play after 10 s (state=" + st(env) + ")");
 check(env.errors.length === 0, "no uncaught error while playing" + (env.errors[0] ? " — " + env.errors[0] : ""));
 check(safe(() => g.player.hp, 0) > 0 && safe(() => g.areaN, 0) === 1, "the run state holds (area=" + safe(() => g.areaN, "?") + ", hp=" + safe(() => g.player.hp, "?") + ")");
 
-console.log(failed ? "\nStart check FAILED (" + failed + ")" : "\nStart check passed: title first, Start on click, tap and Enter, area 1 plays without errors.");
+// -------- 5. an autopilot plays each area: proof the levels are passable --------
+// It presses the same keys a player does (ArrowRight held, ArrowUp, z, x) and is
+// allowed to die: a respawn at the checkpoint is part of playing, not a soft-lock.
+const tap = (env, k) => { key(env, k, "keydown"); key(env, k, "keyup"); };
+
+function play(env, seconds) {
+  const W = env.win.NT.world, G = env.win.nighttail.game;
+  let t = 0, maxX = 0, deaths = 0, wasDead = false, usedDouble = false;
+  const spots = [];   // where each death happened, so a failure names the real place
+  const step = 1 / 60;
+  env.doc.dispatch("keydown", { key: "ArrowRight", code: "ArrowRight" });
+  while (t < seconds) {
+    const s = env.win.nighttail.screen;
+    if (s === "ending") break;
+    if (s !== "play") { tap(env, "Enter"); env.pump(step); t += step; continue; }
+    const p = G.player, lv = G.level;
+    if (p.dead && !wasDead) { deaths++; spots.push("a" + G.areaN + "@" + Math.round(p.x) + "," + Math.round(p.y)); }
+    wasDead = p.dead;
+    if (p.x > maxX) maxX = p.x;
+    const ahead = { x: p.x + p.w - 2, y: p.y + 2, w: 40, h: p.h - 4 };
+    const gap = !W.hitsSolid(lv, { x: p.x + p.w, y: p.y + p.h + 2, w: 40, h: 10 });
+    const spike = !!W.hitsSpike(lv, { x: ahead.x, y: p.y + p.h - 16, w: 44, h: 22 });
+    const wall = !!W.hitsSolid(lv, ahead);
+    const e = (lv.enemiesLive || []).find((x) => x && !x.dead && x.x - (p.x + p.w) < 78 && x.x > p.x - 46 && Math.abs(x.y - p.y) < 80);
+    if (p.onGround) {
+      usedDouble = false;
+      if (gap || spike || wall) tap(env, "ArrowUp");
+    } else if (!usedDouble && p.vy > 30 && (gap || spike)) {
+      tap(env, "ArrowUp");                    // double jump for the wide gaps
+      usedDouble = true;
+    }
+    if (gap && p.dashCool <= 0) tap(env, "x"); // dash across the widest gaps
+    if (e && p.attackTimer <= 0) tap(env, "z"); // sword combo on the watchmen
+    env.pump(step);
+    t += step;
+  }
+  env.doc.dispatch("keyup", { key: "ArrowRight", code: "ArrowRight" });
+  return { t, maxX, deaths, spots, area: G.areaN, state: env.win.nighttail.screen };
+}
+
+function startRun() {
+  const env = boot();
+  env.pump(0.3);
+  tap(env, "Enter"); env.pump(0.25);            // title -> story
+  tap(env, "Enter"); env.pump(0.25);            // story -> play
+  return env;
+}
+
+env = startRun();
+check(st(env) === "play", "autopilot starts in play (state=" + st(env) + ")");
+const r1 = play(env, 120);
+check(r1.area > 1 || r1.maxX > 3500,
+  "area 1 is passable: autopilot reached the door (area " + r1.area + ", x=" + Math.round(r1.maxX) + ", deaths " + r1.deaths + ", died at " + r1.spots.slice(0, 6).join(" ") + ")");
+check(env.errors.length === 0, "no uncaught error in area 1" + (env.errors[0] ? " — " + env.errors[0] : ""));
+check(safe(() => env.win.nighttail.game.level.checkpoint.on, false) === true,
+  "area 1 checkpoint can be reached (checkpoint on=" + safe(() => env.win.nighttail.game.level.checkpoint.on, "?") + ")");
+const r2 = play(env, 150);
+check(r2.area > 2 || r2.maxX > 4100,
+  "area 2 is passable: autopilot reached the door (area " + r2.area + ", x=" + Math.round(r2.maxX) + ", deaths " + r2.deaths + ")");
+const r3 = play(env, 150);
+check(r3.area > 3 || r3.maxX > 3950,
+  "area 3 is passable: autopilot reached the door (area " + r3.area + ", x=" + Math.round(r3.maxX) + ", deaths " + r3.deaths + ")");
+const r4 = play(env, 300);
+check(r4.state === "ending",
+  "the Hollow Keeper can be beaten: ending reached (state=" + r4.state + ", area " + r4.area + ", deaths " + r4.deaths + ")");
+check(safe(() => env.win.nighttail.game.best, 0) > 0, "the winning run was saved as the best time");
+check(env.errors.length === 0, "no uncaught error across all four areas" + (env.errors[0] ? " — " + env.errors[0] : ""));
+
+console.log(failed ? "\nStart check FAILED (" + failed + ")" : "\nCheck passed: title first, Start on click, tap and Enter, and an autopilot clears all four areas.");
 process.exit(failed ? 1 : 0);

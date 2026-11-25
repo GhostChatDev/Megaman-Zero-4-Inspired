@@ -24,7 +24,11 @@ NT.world = (function () {
     s.push(wall(2000, 360, 170, 24));
     s.push(wall(2200, 280, 170, 24));
     // wall-slide chimney: two tall pillars close together
-    s.push(wall(2420, 130, 34, 320));
+    /* Hanging column over the pit: it reads as the same chimney, but its foot stops
+       at y=200 so the ground route under it is open (before, it ran to the floor at
+       x=2420-2454 and walled the pit off completely — nobody could reach the
+       checkpoint, which made area 1 unwinnable). */
+    s.push(wall(2420, 0, 34, 200));
     s.push(wall(2620, 40, 34, 410));
     p.push(wall(2680, 250, 140, 24));
     s.push(floorRun(2520, 260, 520));
