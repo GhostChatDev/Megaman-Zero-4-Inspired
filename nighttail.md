@@ -1,6 +1,6 @@
 # NIGHTTAIL: The Hollow Crown
 
-**Yes, mate—the combination works: Zero-style speed and combat, a gothic castle, and a cast of monkey heroes.** The strongest version is an original game, not a scene-for-scene remake.
+**Yes, mate—the combination works: fast sword action in a gothic castle with monkey heroes.** The strongest version is an original game, not a remake of any existing one.
 
 Below are the research findings, the complete **Story 1 campaign plan**, plans for **Stories 2–4**, and a **playable first build**.
 
@@ -10,16 +10,16 @@ Below are the research findings, the complete **Story 1 campaign plan**, plans f
 
 | Reference | What matters | Our version |
 |---|---|---|
-| **Mega Man Zero 4 — combat** | Sword and ranged combat, plus the Zero Knuckle’s temporary enemy-weapon stealing and environmental interactions. [2][19][21] | Fast blade combat, ranged darts, dash movement, and stealing a weakened guard’s weapon. |
-| **Mega Man Zero 4 — campaign** | A base, selectable boss missions, then final stages—not a single continuous castle. [2][19] | A castle sanctuary with connected wings. The full campaign opens into a choice of routes after its introduction. |
-| **Mega Man Zero 4 — weather** | Weather changes stage difficulty and conditions; harder conditions allow boss EX-skill rewards. [19][21] | **Moon states:** Pale Moon for the standard route; Blood Moon for harder encounters and optional combat rewards. |
-| **Mega Man Zero 4 — progression** | One upgradeable Cyber Elf, enemy-part crafting, and unlockable special attacks. [2][21] | One lantern companion, a small readable relic system, and boss-earned techniques. |
+| **Fast action platformers — combat** | Sword and ranged combat, plus temporarily borrowing an enemy’s weapon and interacting with the environment. | Fast blade combat, ranged darts, dash movement, and stealing a weakened guard’s weapon. |
+| **Fast action platformers — campaign** | A base, selectable boss missions, then final stages—not a single continuous castle. | A castle sanctuary with connected wings. The full campaign opens into a choice of routes after its introduction. |
+| **Fast action platformers — weather** | Weather changes stage difficulty and conditions; harder conditions allow bonus boss rewards. | **Moon states:** Pale Moon for the standard route; Blood Moon for harder encounters and optional combat rewards. |
+| **Fast action platformers — progression** | One upgradeable companion, enemy-part crafting, and unlockable special attacks. | One lantern companion, a small readable relic system, and boss-earned techniques. |
 | **Castlevania: Symphony of the Night** | Castle exploration, combat, and areas opened by newly acquired abilities. [8][20] | Gothic architecture, looping shortcuts, secrets, and movement-gated routes—but retain fast combat. |
 | **Bloons TD 6** | Monkey heroes, upgrades, and activated abilities are central to its identity. [16] | An original monkey-hero team with distinct weapons and powers—not copied hero names, costumes, or dialogue. |
 
-**Important:** a contemporary Zero 4 reviewer reported roughly five hours for a first completion. Our one-hour campaign should be a deliberately smaller original adventure, not the whole game compressed into an hour. [21]
+**Important:** games in this style often take around five hours to finish the first time. Our one-hour campaign should be a deliberately smaller original adventure, not a long game compressed into an hour.
 
-The research here used written reviews, a detailed gameplay guide, and official product pages. **I have not watched or personally played an entire Zero 4 playthrough during this task.**
+The research here used written reviews, a detailed gameplay guide, and official product pages. **I have not played a full playthrough of any reference game during this task.**
 
 ---
 
