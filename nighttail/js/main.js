@@ -179,9 +179,15 @@ window.NT = window.NT || {};
   }
   el.startBtn.addEventListener("click", ifaceClick(begin));
   el.startBtn.addEventListener("pointerup", function (e) { if (e.pointerType !== "mouse") ifaceClick(begin)(e); });
-  ["pointerdown"].forEach(function (ev) {
-    el.story.addEventListener(ev, function (e) { e.preventDefault(); NT.audio.unlock(); startPlay(); });
-  });
+  // One place that advances the story, guarded by the state: a real tap fires pointerdown
+  // and then click, and Enter on a focused button or a screen reader fires click alone.
+  function storyAdvance(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (G.state !== "story") return;
+    NT.audio.unlock(); startPlay();
+  }
+  el.story.addEventListener("pointerdown", storyAdvance);
+  el.story.addEventListener("click", storyAdvance);
   if (el.storyBtn) el.storyBtn.addEventListener("click", ifaceClick(startPlay));
   el.resumeBtn.addEventListener("click", ifaceClick(function () { togglePause(false); }));
   el.restartBtn.addEventListener("click", ifaceClick(function () { loadArea(G.areaN, false); }));
