@@ -223,16 +223,11 @@ NT.entities = (function () {
 
     e.x += e.vx * dt;
     if (W.hitsSolid(lv, ebox(e))) { e.x -= e.vx * dt; e.vx = 0; if (e.state === "sweep") e.state = "rest"; }
-    // Keep the whole body inside the arena. The old bound let the Keeper sink into the right wall,
-    // and the vertical un-stick loop then shoved it to the ceiling, where no sword can reach it.
-    e.x = Math.max(20, Math.min(lv.arena - e.w, e.x));
-    var prevY = e.y;
+    e.x = Math.max(20, Math.min(lv.arena + 180, e.x));
     e.y += e.vy * dt;
     e.onGround = false;
     if (W.hitsSolid(lv, ebox(e))) {
-      // Falling into something: rise out of it. Rising into something: never stay inside it.
-      if (e.vy > 0) while (W.hitsSolid(lv, ebox(e)) && e.y > prevY - 64) e.y -= 2;
-      if (W.hitsSolid(lv, ebox(e))) e.y = prevY;
+      while (W.hitsSolid(lv, ebox(e)) && e.y > 0) e.y -= 2;
       e.vy = 0; e.onGround = true;
     }
   }

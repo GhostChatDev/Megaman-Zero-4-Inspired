@@ -221,9 +221,7 @@ window.NT = window.NT || {};
     var lv = G.level, p = G.player;
     dt = Math.min(dt, 1 / 30);
 
-    /* Redraw the frozen frame during hit stop. `render` is defined in the renderer's own
-       scope further down, so reach it through the published loop object instead. */
-    if (G.hitStop > 0) { G.hitStop -= dt; if (NT.loop.render) NT.loop.render(0); return; }
+    if (G.hitStop > 0) { G.hitStop -= dt; render(0); return; }
 
     if (!p.dead) G.time += dt;
 
