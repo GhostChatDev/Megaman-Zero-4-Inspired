@@ -307,6 +307,11 @@ window.NT = window.NT || {};
 
   NT.loop = { update: update, render: null, G: G, el: el, isTouch: isTouch, fmt: fmt, setState: setState };
   window.__ntReady = function () { return G.state; };
+  /* A plain handshake for the checks: `screen` always mirrors what is on display,
+     and the first key/button press moves it away from the title. */
+  Object.defineProperty(window.nighttail, "screen", { get: function () { return G.state; } });
+  window.game = window.nighttail;
+  window.NIGHTTAIL = { title: "NIGHTTAIL: The Hollow Crown", state: function () { return G.state; } };
 })();
 /* ---------- renderer: everything is drawn with shapes ---------- */
 (function () {
